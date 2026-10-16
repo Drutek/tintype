@@ -38,7 +38,7 @@ class SendBuildNotifications implements ShouldQueue
             $body = json_encode(['event' => 'build.status', 'project' => ['name' => $project->name, 'slug' => $project->slug, 'organization' => $project->organization->slug], 'build' => $summary], JSON_THROW_ON_ERROR);
             $res = Http::timeout(10)->withBody($body, 'application/json')->withHeaders([
                 'X-Tintype-Event' => 'build.status',
-                'X-Tintype-Signature' => 'sha256='.hash_hmac('sha256', $body, $project->token_hash),
+                'X-Tintype-Signature' => 'sha256='.hash_hmac('sha256', $body, $project->webhookSecret()),
             ])->post($webhook);
             if ($res->failed()) {
                 Log::warning("Tintype webhook to {$webhook} failed: {$res->status()}");

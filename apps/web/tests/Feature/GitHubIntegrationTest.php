@@ -138,5 +138,13 @@ class GitHubIntegrationTest extends TestCase
         $this->assertSame('approved', $pr->fresh()->review_status);
         Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/check-runs') && ($r['conclusion'] ?? null) === 'success');
         $this->assertInstanceOf(Build::class, $head);
+
+        $other = $this->member($project);
+        $this->actingAs($user)->post(route('pulls.assign', [$project->organization, $project, 3]), ['user_id' => $other->id])->assertRedirect();
+        $this->get(route('pulls.show', [$project->organization, $project, 3]))->assertInertia(fn ($page) => $page->where('pull.assignees.0.id', $other->id));
+        $this->post(route('pulls.assign', [$project->organization, $project, 3]), ['user_id' => $other->id, 'remove' => true]);
+        $this->assertSame([], $pr->fresh()->assignees);
+        $stranger = User::factory()->create();
+        $this->post(route('pulls.assign', [$project->organization, $project, 3]), ['user_id' => $stranger->id])->assertStatus(422);
     }
 }

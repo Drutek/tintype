@@ -36,7 +36,9 @@ capture:
 | Date | Environment | Runs | Result |
 |---|---|---|---|
 | 2026-10-16 | `tintype/capture-chromium:dev` (linux/amd64 under Rosetta, Apple `container` 1.1.0), Chromium 156.0.8078.4 | 20 | **27/27 comparable snapshots identical.** The 2 others: 1 render-error overlay (excluded) and 1 that differed only inside an ignore region (masked). |
-| 2026-10-16 | Native macOS arm64, Chromium 156.0.8078.4 | 3 | 28/28 identical (dev only, not a supported baseline environment) |
+| 2026-10-16 | `tintype/capture-firefox:dev` (linux/amd64, Rosetta), Firefox 157.0 | 5 | **28/28 identical** (1 render error excluded, 1 masked-only) |
+| 2026-10-16 | `tintype/capture-webkit:dev` (linux/amd64, Rosetta), WebKit 27.2 | 5 | **31/31 identical** (fixture now includes accessibility stories) |
+| 2026-10-16 | Native macOS arm64, Chromium / Firefox / WebKit | 3 each | All identical (dev only, not a supported baseline environment) |
 | CI | GitHub Actions `ubuntu-latest` native x86_64, Docker | 20 | Runs on every capture-image change (`.github/workflows/determinism.yml`) |
 
 ## What makes it deterministic

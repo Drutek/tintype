@@ -33,7 +33,7 @@ class IntegrationsTest extends TestCase
         (new SendBuildNotifications($build->id))->handle(); // same status: no resend
         Http::assertSentCount(2);
         Http::assertSent(fn (Request $r) => $r->url() === 'https://hooks.example.com/t'
-            && $r->hasHeader('X-Tintype-Signature', 'sha256='.hash_hmac('sha256', $r->body(), $project->fresh()->token_hash))
+            && $r->hasHeader('X-Tintype-Signature', 'sha256='.hash_hmac('sha256', $r->body(), $project->fresh()->webhookSecret()))
             && $r['build']['status'] === 'passed');
         Http::assertSent(fn (Request $r) => str_contains($r->url(), 'slack') && str_contains($r['text'], ':white_check_mark:'));
 

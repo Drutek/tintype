@@ -12,7 +12,7 @@ Decisions so far (2026-10-16):
 | Backend / control plane | Laravel 13, PHP 8.5, Postgres 16, Redis, Horizon, Reverb |
 | Frontend | Inertia 3 + React 19 + TypeScript + Tailwind |
 | Capture | Node 24 + Playwright 1.64, one pinned Docker image per browser, x86_64 only |
-| Diff | `odiff-bin` (native, fast) with a SHA-256 hash short-circuit. `pixelmatch` as a pure-JS fallback. |
+| Diff | `pixelmatch` (YIQ threshold, anti-aliasing detection) with a SHA-256 hash short-circuit |
 | Storage | Any S3-compatible service (AWS S3 / MinIO / R2), content-addressed |
 | Reference deployment | AWS: ECS Fargate (web, horizon, reverb, capture), RDS, ElastiCache, S3, via Terraform |
 | Single-host deployment | `docker compose` (with MinIO) |
@@ -256,7 +256,7 @@ REST, versioned `/api/v1`, documented with OpenAPI (Scramble).
 
 ## 12. Testing strategy
 
-- **Pest (PHP):** baseline resolution (graph fixtures), the build state machine, policy/authorization, API contracts, and the GitHub webhook handlers using recorded payloads.
+- **PHPUnit (PHP):** baseline resolution (graph fixtures), the build state machine, policy/authorization, API contracts, and the GitHub webhook handlers using recorded payloads.
 - **Vitest (TS):** CLI git detection and arg parsing, the diff library (golden PNG fixtures), and capture param resolution.
 - **Determinism suite (CI, x86_64 runner):** capture `fixtures/sample-storybook` 10× in the image and assert 0 differing pixels across all runs. This gates every capture-image release.
 - **End-to-end:** a compose stack in CI. Run the CLI against the fixture Storybook, assert the build passes, modify a story, assert `changed`, accept it through Playwright driving the review UI, then assert the next build passes.
@@ -266,58 +266,55 @@ REST, versioned `/api/v1`, documented with OpenAPI (Scramble).
 
 ## 13. Milestones and acceptance criteria
 
-Each milestone ends with green CI and a short demo note in `docs/progress.md`.
+Status as of 2026-10-16. `docs/progress.md` records how each item was verified.
 
-### Phase 0: Foundations and determinism spike
-- [ ] `git init`, monorepo skeleton (§1), pnpm workspace, license (MIT unless changed), README, CI skeleton
-- [ ] Verify Apple `container` works: `container system start`, then build and run an amd64 Playwright image with `--rosetta`, and record any quirks in `docs/dev-environment.md`
-- [ ] `scripts/dev-up.sh` / `dev-down.sh` (Postgres, Redis, MinIO via `container run`)
-- [ ] `fixtures/sample-storybook` (Storybook 10, React + Vite) with these edge-case stories: web fonts, CSS animation, transition, `Date.now()` rendering, `Math.random`, lazy image, SVG, emoji, portal/modal, long scroll, `play` function
-- [ ] Capture Dockerfile for Chromium, pinned by digest, with fonts and flags (§5)
-- [ ] `packages/capture` standalone mode: `capture --storybook <dir|url> --out <dir>` captures every story
-- [ ] Determinism script: 20 runs, then pixel-compare all of them
-- [ ] Determinism CI job on GitHub Actions `ubuntu-latest` (native x86_64, Docker) running the same script
-- **Accept:** 20/20 identical captures for every fixture story locally (amd64 under Rosetta) **and** in CI (native x86_64), plus a note on whether the Rosetta and native captures match each other; findings written to `docs/determinism.md`
+### Phase 0: Foundations and determinism spike ✅
+- [x] `git init`, monorepo skeleton (§1), pnpm workspace, MIT license, README, CI skeleton
+- [x] Apple `container` verified (amd64 + Rosetta builds and runs); quirks in `docs/dev-environment.md`
+- [x] `scripts/dev-up.sh` / `dev-down.sh` (Postgres, Redis, MinIO via `container run`, named volumes)
+- [x] `fixtures/sample-storybook` (Storybook 10, React + Vite) with edge-case stories (fonts, emoji/CJK/RTL, CSS animation, transitions, frozen dates, `Math.random`, lazy images, SVG, portal, fullscreen, modes, `play` pass/fail, render error, ignore region, a11y violations)
+- [x] Capture Dockerfile pinned by digest, fonts from a dated Ubuntu snapshot, fontconfig and Chromium flags (§5); one Dockerfile with `BROWSER` build-arg
+- [x] `tintype-capture run` (standalone) and `tintype-capture determinism`
+- [x] Determinism CI job (`.github/workflows/determinism.yml`, native x86_64)
+- **Accept:** met locally. Chromium in the amd64 container: 27/27 comparable snapshots identical over 20 runs. Firefox: 28/28 over 5 runs. WebKit: 31/31 over 5 runs. The native x86_64 CI run happens on the first push of this history (it needs the force-push described in `docs/progress.md`).
 
-### Phase 1: MVP (end-to-end visual testing)
-- [ ] Laravel 13 app: Inertia/React/TS/Tailwind scaffold, auth, orgs, projects, project tokens
-- [ ] Migrations and models for §2 (except the Phase 2 tables)
-- [ ] S3 abstraction (MinIO locally), content-addressed image storage
-- [ ] Build API plus presigned upload, index job, sharding, worker lease/heartbeat/results API
-- [ ] Capture worker service mode (lease loop), hash, upload, odiff diff, retake/inconsistent logic
-- [ ] Baselines: full ancestor-walk algorithm (§4), with the default-branch fallback
-- [ ] Finalize job, build state machine, Reverb progress
-- [ ] Review UI: build page, snapshot view (side by side, overlay, diff), accept/deny, batch accept, keyboard flow
-- [ ] CLI: create, build Storybook, upload, poll, exit codes, git detection
-- [ ] GitHub App via the manifest flow, check runs on build and on review
-- [ ] docker compose deployment
-- [ ] E2E test (§12) passing in CI
-- **Accept:** on a fresh machine, `docker compose up`, the setup wizard, and then the CLI run in a sample repo's GitHub Action produce a check run. A visual change causes a red/pending check, accepting it in the UI turns the check green, and the next build on `main` passes with the new baseline.
+### Phase 1: MVP (end-to-end visual testing) ✅
+- [x] Laravel 13 app: Inertia 3 / React 19 / TS / Tailwind, auth (first user becomes admin and org owner), orgs, members and roles, projects, hashed project tokens
+- [x] Migrations and models for §2
+- [x] S3 or local storage (`tintype` disk), content-addressed images
+- [x] Build API, direct or presigned upload, index job, sharding, worker lease/heartbeat/results API, lease expiry and retry
+- [x] Capture worker service mode, with hash short-circuit, pixel diff (pixelmatch; odiff dropped, since pixelmatch's YIQ threshold semantics are what we want), and retake/inconsistent logic
+- [x] Baselines: ancestor walk with redundancy pruning, rebuilds, branch and default-branch fallbacks (§4)
+- [x] Finalize, build state machine, Reverb broadcasting (runtime-configured) with a polling fallback
+- [x] Review UI: build page, diff, side-by-side, swipe, baseline/new, spotlight, zoom, accept/deny/undo, accept-all, keyboard flow, comments, history
+- [x] CLI: build Storybook, upload, poll, exit codes, git and PR detection (PR head in GitHub Actions)
+- [x] GitHub App via the manifest flow, check runs on build and on review (tested with faked HTTP)
+- [x] docker compose deployment; web image built and smoke-tested (amd64)
+- [x] E2E (`scripts/e2e.sh`): real server, capture worker, CLI, Playwright review UI and Storybook addon; also run in CI (`.github/workflows/ci.yml`)
+- **Accept:** verified locally end to end: first build auto-accepted, no-change build passes, a Button colour change flags exactly the 3 affected stories, accepting in the UI makes the next build pass. A live GitHub check run on a real repo needs a publicly reachable install. That step is manual (see `docs/progress.md`).
 
-### Phase 2: Full feature set
-- [ ] Story params: `disableSnapshot`, `delay`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd`, `viewports` (legacy), and **modes** (viewport + globals such as theme or locale)
-- [ ] Ignore regions (selectors, class, data attribute)
-- [ ] Firefox and WebKit capture images; per-project browser selection
-- [ ] Squash/rebase merge baseline handling through the GitHub API
-- [ ] Removed-story detection, and "unchanged since last accepted" propagation
-- [ ] Component library page and hosted Storybook per build (with a permalink to the latest on each branch)
-- [ ] UI Review (PR page, threads, assignees, second check run)
-- [ ] Auto-accept rules (`--auto-accept-changes`, default-branch policy), rebaseline after a capture image upgrade
-- [ ] Storage GC and retention settings
-- [ ] Terraform AWS module plus an operator guide
-- [ ] Docs site: quickstart, CI recipes, configuration reference
-- **Accept:** a real-world Storybook (≥300 stories, 2 modes, 2 browsers) runs end to end on AWS in under 5 minutes with the default autoscaling, and with 0 inconsistent snapshots over 10 consecutive no-change builds.
+### Phase 2: Full feature set ✅
+- [x] Story params under `parameters.tintype`: `disableSnapshot`, `delay`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd`, `viewports`, **modes** (viewport + globals), `ignoreSelectors`, `cropToViewport`, `fixedTime`, `a11y`
+- [x] Ignore regions (selectors, `.tintype-ignore`, `data-tintype="ignore"`)
+- [x] Firefox and WebKit capture images; per-project browser selection
+- [x] Squash/rebase merges: PR head build prioritised through the PR webhook (`merge_commit_sha`)
+- [x] Removed-story detection; uncaptured stories inherited as unchanged
+- [x] Component library page; hosted Storybook per build plus a latest-on-branch permalink
+- [x] UI Review: PR page, before/after, approve/request changes/comment, assignees, second check run
+- [x] Auto-accept (`--auto-accept-changes`, default-branch policy, first build), Rebaseline, capture-environment-changed flag
+- [x] Storage GC and retention (`tintype:gc`, daily)
+- [x] Terraform AWS module (validated with `terraform validate`) plus operator README
+- [x] Docs: quickstart, CI recipes, configuration reference, reviewing, self-hosting, architecture, API
+- **Accept:** the AWS performance criterion (≥300 stories, 2 modes, 2 browsers, under 5 minutes) has **not** been measured. It needs a real AWS account and is listed as an open item in `docs/progress.md`.
 
-### Phase 3: Beyond parity basics
-- [ ] TurboSnap: the CLI reads Vite/webpack stats, maps changed files (`git diff` against the baseline commit) to affected stories, and captures only those. The rest are marked `unchanged`, carried over.
-- [ ] Storybook Visual Tests addon: run a build from Storybook and review the diffs inline
-- [ ] Interaction test results (`play` failures reported as errors with a trace)
-- [ ] Accessibility checks (axe-core per story, with violations tracked like diffs)
-- [ ] GitLab and Bitbucket providers (behind a provider interface introduced in Phase 1)
-- [ ] SSO (OIDC/SAML through Socialite providers), audit log UI
-- [ ] Slack/webhook notifications
-
----
+### Phase 3: Beyond the basics ✅
+- [x] TurboSnap (`--only-changed`): stats-based reverse dependency tracing, full rebuild on config/lockfile/externals, baseline-commit API, inheritance on the server
+- [x] Storybook addon: Visual tests panel, run builds from Storybook, signed image URLs (token stays on the Node side)
+- [x] Interaction tests: `play` failures become error snapshots with message and stack
+- [x] Accessibility: axe-core per story, violations stored, new-versus-baseline counted, shown in the UI, CLI and addon
+- [x] GitLab and Bitbucket commit statuses behind a provider interface
+- [x] SSO: GitHub sign-in and generic OIDC (PKCE). SAML isn't built in; use an OIDC bridge (e.g. Keycloak). Audit log UI (admin and organization)
+- [x] Slack and signed outgoing webhook notifications
 
 ## 14. Risks and mitigations
 

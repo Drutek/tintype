@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\Project;
 use App\Models\PullRequest;
 use App\Models\PullRequestReview;
+use App\Models\User;
 use App\Services\UiReview;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -74,7 +75,9 @@ class PullRequestController extends Controller
                 'baseBranch' => $pr->base_branch ?? $project->default_branch,
                 'url' => $pr->url,
                 'author' => $pr->author,
+                'assignees' => User::whereIn('id', $pr->assignees ?? [])->get(['id', 'name'])->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
             ],
+            'members' => $organization->users()->orderBy('name')->get(['users.id', 'users.name'])->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
             'head' => $comparison['head'] ? BuildController::row($comparison['head']) : null,
             'base' => $comparison['base'] ? BuildController::row($comparison['base']) : null,
             'changes' => collect($comparison['changes'])->map(fn ($c) => [
@@ -94,6 +97,24 @@ class PullRequestController extends Controller
                 'id' => $r->id, 'state' => $r->state, 'body' => $r->body, 'user' => $r->user?->name, 'createdAt' => $r->created_at->toIso8601String(),
             ]),
         ]);
+    }
+
+    /** Assign (or unassign) a reviewer to a pull request's UI review. */
+    public function assign(Request $request, Organization $organization, Project $project, int $number): RedirectResponse
+    {
+        $this->scoped($organization, $project);
+        $this->requireReviewer($request, $organization);
+        $data = $request->validate(['user_id' => ['required', 'integer'], 'remove' => ['boolean']]);
+        abort_unless($organization->users()->whereKey($data['user_id'])->exists(), 422, 'Not a member of this organization');
+        $pr = PullRequest::firstOrCreate(['project_id' => $project->id, 'number' => $number], ['base_branch' => $project->default_branch]);
+        $assignees = collect($pr->assignees ?? [])->map(fn ($id) => (int) $id);
+        $assignees = ($data['remove'] ?? false) ? $assignees->reject(fn ($id) => $id === $data['user_id']) : $assignees->push($data['user_id'])->unique();
+        $pr->update(['assignees' => $assignees->values()->all()]);
+        if (! ($data['remove'] ?? false)) {
+            $pr->reviews()->create(['user_id' => $request->user()->id, 'state' => 'assigned', 'body' => (string) User::whereKey($data['user_id'])->value('name')]);
+        }
+
+        return back();
     }
 
     public function review(Request $request, Organization $organization, Project $project, int $number): RedirectResponse

@@ -72,6 +72,7 @@ Route::middleware(['auth'])->group(function () {
 
             Route::get('pulls', [PullRequestController::class, 'index'])->name('pulls.index');
             Route::get('pulls/{number}', [PullRequestController::class, 'show'])->whereNumber('number')->name('pulls.show');
+            Route::post('pulls/{number}/assign', [PullRequestController::class, 'assign'])->whereNumber('number')->name('pulls.assign');
             Route::post('pulls/{number}/review', [PullRequestController::class, 'review'])->whereNumber('number')->name('pulls.review');
         });
     });

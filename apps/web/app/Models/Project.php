@@ -101,6 +101,19 @@ class Project extends Model
         $this->settings = array_merge($this->settings ?? [], ['scm_token_encrypted' => $token ? encrypt($token) : null]);
     }
 
+    /** Secret used to sign outgoing webhooks (created on first use). */
+    public function webhookSecret(): string
+    {
+        $value = $this->settings['webhook_secret_encrypted'] ?? null;
+        if (is_string($value) && $value !== '') {
+            return decrypt($value);
+        }
+        $secret = 'whsec_'.Str::random(32);
+        $this->forceFill(['settings' => array_merge($this->settings ?? [], ['webhook_secret_encrypted' => encrypt($secret)])])->save();
+
+        return $secret;
+    }
+
     /**
      * Settings safe to show in the UI (secrets removed).
      *
@@ -110,7 +123,7 @@ class Project extends Model
     {
         $s = $this->resolvedSettings();
         $s['scm_token_set'] = ! empty($s['scm_token_encrypted']);
-        unset($s['scm_token_encrypted']);
+        unset($s['scm_token_encrypted'], $s['webhook_secret_encrypted']);
 
         return $s;
     }

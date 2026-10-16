@@ -56,7 +56,9 @@ export function initScript(cfg: InitConfig): void {
         ?? (e as { description?: string })?.description
         ?? (e as { title?: string })?.title
         ?? String(e);
-      state.errors.push(`${label}: ${msg}`);
+      const stack = (e as { stack?: string })?.stack;
+      // Include the first stack frames so play-function failures show where they happened.
+      state.errors.push(`${label}: ${msg}${stack ? `\n${stack.split('\n').slice(1, 6).join('\n')}` : ''}`);
     };
     ch.on('storyErrored', err('Story errored'));
     ch.on('storyThrewException', err('Story threw'));
@@ -65,6 +67,21 @@ export function initScript(cfg: InitConfig): void {
       state.errors.push('Story missing');
       state.status = 'error';
       state.finished = true;
+    });
+    // Storybook < 8.4 has no storyFinished event; storyRendered fires after play there.
+    ch.on('storyRendered', () => {
+      setTimeout(() => {
+        if (state.finished) return;
+        const phase = (window as unknown as { __STORYBOOK_PREVIEW__?: { currentRender?: { phase?: string } } }).__STORYBOOK_PREVIEW__?.currentRender?.phase;
+        if (!phase || ['completed', 'finished', 'played', 'errored', 'aborted'].includes(phase)) {
+          state.status = state.errors.length ? 'error' : 'success';
+          state.finished = true;
+        }
+      }, 250);
+    });
+    ch.on('storyErrored', () => {
+      state.status = 'error';
+      setTimeout(() => (state.finished = true), 250);
     });
     ch.on('storyFinished', (p: { status: 'success' | 'error'; reporters?: unknown[] }) => {
       state.status = p?.status ?? 'success';

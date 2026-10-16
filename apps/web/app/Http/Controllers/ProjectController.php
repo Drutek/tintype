@@ -123,6 +123,7 @@ class ProjectController extends Controller
             'role' => $role->value,
             'newToken' => session('newToken'),
             'tokenPrefix' => $project->token_prefix,
+            'webhookSecret' => $role->canManage() && $project->setting('notify_webhook_url') ? $project->webhookSecret() : null,
             'storyCount' => Story::where('project_id', $project->id)->count(),
             'apiUrl' => url('/'),
         ]);

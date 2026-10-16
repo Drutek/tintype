@@ -1,11 +1,11 @@
-import { Form, Head, Link } from '@inertiajs/react';
+import { Form, Head, Link, router } from '@inertiajs/react';
 import { useState } from 'react';
 import { ProjectNav, projectBreadcrumbs } from '@/components/tintype/project-nav';
 import { BuildStatusBadge, timeAgo } from '@/components/tintype/status-badge';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { show as showBuild } from '@/routes/builds';
-import { review as reviewPull } from '@/routes/pulls';
+import { assign as assignPull, review as reviewPull } from '@/routes/pulls';
 import type { BuildRow, OrgRef, ProjectRef, Role } from '@/types';
 
 interface Change {
@@ -26,16 +26,27 @@ interface Props {
     organization: OrgRef;
     project: ProjectRef;
     role: Role;
-    pull: { number: number; title: string | null; state: string; reviewStatus: string; headBranch: string | null; baseBranch: string; url: string | null; author: string | null };
+    pull: {
+        number: number;
+        title: string | null;
+        state: string;
+        reviewStatus: string;
+        headBranch: string | null;
+        baseBranch: string;
+        url: string | null;
+        author: string | null;
+        assignees: { id: number; name: string }[];
+    };
+    members: { id: number; name: string }[];
     head: BuildRow | null;
     base: BuildRow | null;
     changes: Change[];
     reviews: { id: number; state: string; body: string | null; user: string | null; createdAt: string }[];
 }
 
-const STATE_LABEL: Record<string, string> = { approved: 'approved', changes_requested: 'requested changes', commented: 'commented' };
+const STATE_LABEL: Record<string, string> = { approved: 'approved', changes_requested: 'requested changes', commented: 'commented', assigned: 'assigned' };
 
-export default function PullShow({ organization, project, role, pull, head, base, changes, reviews }: Props) {
+export default function PullShow({ organization, project, role, pull, members, head, base, changes, reviews }: Props) {
     const [view, setView] = useState<'side' | 'after'>('side');
     const p = { organization: organization.slug, project: project.slug };
     const byComponent = changes.reduce<Record<string, Change[]>>((acc, c) => ((acc[c.title] ??= []).push(c), acc), {});
@@ -146,13 +157,50 @@ export default function PullShow({ organization, project, role, pull, head, base
                             </Form>
                         )}
                     </div>
+                    <div className="rounded-xl border p-3 text-sm">
+                        <div className="mb-2 font-medium">Reviewers</div>
+                        <ul className="mb-2 space-y-1">
+                            {pull.assignees.map((a) => (
+                                <li key={a.id} className="flex items-center justify-between">
+                                    {a.name}
+                                    {role !== 'viewer' && (
+                                        <button
+                                            type="button"
+                                            className="text-xs text-muted-foreground underline"
+                                            onClick={() => router.post(assignPull.url({ ...p, number: pull.number }), { user_id: a.id, remove: true }, { preserveScroll: true })}
+                                        >
+                                            remove
+                                        </button>
+                                    )}
+                                </li>
+                            ))}
+                            {!pull.assignees.length && <li className="text-xs text-muted-foreground">No reviewers assigned.</li>}
+                        </ul>
+                        {role !== 'viewer' && (
+                            <select
+                                value=""
+                                aria-label="Assign reviewer"
+                                className="h-8 w-full rounded-md border bg-background px-2 text-xs"
+                                onChange={(e) => e.target.value && router.post(assignPull.url({ ...p, number: pull.number }), { user_id: Number(e.target.value) }, { preserveScroll: true })}
+                            >
+                                <option value="">Assign a reviewer…</option>
+                                {members
+                                    .filter((m) => !pull.assignees.some((a) => a.id === m.id))
+                                    .map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {m.name}
+                                        </option>
+                                    ))}
+                            </select>
+                        )}
+                    </div>
                     <ul className="space-y-2">
                         {reviews.map((r) => (
                             <li key={r.id} className="rounded-xl border p-3 text-sm">
                                 <div className="text-xs text-muted-foreground">
                                     <span className="font-medium text-foreground">{r.user}</span> {STATE_LABEL[r.state] ?? r.state} · {timeAgo(r.createdAt)}
                                 </div>
-                                {r.body && <p className="mt-1 whitespace-pre-wrap">{r.body}</p>}
+                                {r.body && <p className="mt-1 whitespace-pre-wrap">{r.state === 'assigned' ? `→ ${r.body}` : r.body}</p>}
                             </li>
                         ))}
                     </ul>

@@ -3,6 +3,7 @@
 FROM dunglas/frankenphp:1-php8.4-bookworm AS base
 RUN install-php-extensions pdo_pgsql pdo_sqlite zip pcntl gd intl opcache bcmath
 ENV SERVER_NAME=":8080" \
+    APP_NAME=Tintype \
     APP_ENV=production \
     APP_DEBUG=false \
     LOG_CHANNEL=stderr \
@@ -29,7 +30,7 @@ COPY --from=build /app /app
 COPY apps/web/docker/entrypoint.sh /usr/local/bin/tintype-entrypoint
 RUN chmod +x /usr/local/bin/tintype-entrypoint \
  && mkdir -p storage/framework/{cache,sessions,views} storage/logs storage/app/tintype bootstrap/cache \
- && chown -R www-data:www-data storage bootstrap/cache
+ && chown -R www-data:www-data storage bootstrap/cache /data /config
 USER www-data
 EXPOSE 8080
 ENTRYPOINT ["tintype-entrypoint"]

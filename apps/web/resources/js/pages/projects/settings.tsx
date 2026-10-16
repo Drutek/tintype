@@ -38,6 +38,7 @@ interface Props {
     role: Role;
     newToken: string | null;
     tokenPrefix: string;
+    webhookSecret: string | null;
     storyCount: number;
     apiUrl: string;
 }
@@ -61,7 +62,7 @@ jobs:
           TINTYPE_PROJECT_TOKEN: \${{ secrets.TINTYPE_PROJECT_TOKEN }}`;
 }
 
-export default function ProjectSettings({ organization, project, role, newToken, tokenPrefix, apiUrl }: Props) {
+export default function ProjectSettings({ organization, project, role, newToken, tokenPrefix, webhookSecret, apiUrl }: Props) {
     const canManage = role === 'owner' || role === 'admin';
     const p = { organization: organization.slug, project: project.slug };
     const form = useForm({
@@ -214,6 +215,11 @@ export default function ProjectSettings({ organization, project, role, newToken,
                                 <Label htmlFor="hook">Webhook URL (build events, JSON)</Label>
                                 <Input id="hook" placeholder="https://…" value={s.notify_webhook_url ?? ''} onChange={(e) => set('notify_webhook_url', e.target.value || null)} />
                                 <InputError message={err['settings.notify_webhook_url']} />
+                                {webhookSecret && (
+                                    <p className="text-xs text-muted-foreground">
+                                        Signing secret (HMAC-SHA256 in <code>X-Tintype-Signature</code>): <code className="break-all">{webhookSecret}</code>
+                                    </p>
+                                )}
                             </div>
                             <div className="grid gap-1.5">
                                 <Label htmlFor="slack">Slack incoming webhook</Label>
