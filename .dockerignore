@@ -1,0 +1,7 @@
+**/node_modules
+**/dist
+**/storybook-static
+.captures
+.git
+apps/web/vendor
+apps/web/node_modules

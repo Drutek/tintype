@@ -1,0 +1,27 @@
+{
+  "name": "@tintype/cli",
+  "version": "0.1.0",
+  "description": "Run Tintype visual tests for your Storybook from CI",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "tintype": "dist/cli.js" },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "repository": { "type": "git", "url": "https://github.com/kevin-coyle/tintype.git", "directory": "packages/cli" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "commander": "^15.0.0",
+    "fflate": "^0.8.3",
+    "picocolors": "^1.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.5"
+  }
+}

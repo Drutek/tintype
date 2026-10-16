@@ -1,0 +1,28 @@
+name: Capture determinism
+
+on:
+  push:
+    paths: ['packages/capture/**', 'packages/diff/**', 'fixtures/sample-storybook/**', '.github/workflows/determinism.yml']
+  pull_request:
+    paths: ['packages/capture/**', 'packages/diff/**', 'fixtures/sample-storybook/**']
+  workflow_dispatch:
+
+jobs:
+  determinism:
+    runs-on: ubuntu-latest # native x86_64
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: pnpm --filter @tintype/sample-storybook build-storybook
+      - run: docker build -t tintype/capture-chromium:ci -f packages/capture/docker/chromium/Dockerfile .
+      - name: 20 runs
+        run: |
+          mkdir -p out && chmod 777 out
+          docker run --rm -v "$PWD/fixtures/sample-storybook/storybook-static:/sb:ro" -v "$PWD/out:/out" \
+            tintype/capture-chromium:ci determinism -s /sb -n 20 -o /out/det
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: determinism, path: out/det }

@@ -1,0 +1,119 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Jobs\ReportPullRequestToGitHub;
+use App\Models\Build;
+use App\Models\Image;
+use App\Models\Organization;
+use App\Models\Project;
+use App\Models\PullRequest;
+use App\Models\PullRequestReview;
+use App\Services\UiReview;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+use Inertia\Inertia;
+use Inertia\Response;
+
+/**
+ * UI Review: everything a PR changes visually, compared with its base branch,
+ * reviewed like code (approve / request changes, threads).
+ */
+class PullRequestController extends Controller
+{
+    use Concerns;
+
+    public function index(Request $request, Organization $organization, Project $project): Response
+    {
+        $this->scoped($organization, $project);
+        $this->role($request, $organization);
+        $numbers = $project->builds()->whereNotNull('pr_number')->distinct()->pluck('pr_number');
+        $known = PullRequest::where('project_id', $project->id)->get()->keyBy('number');
+        $rows = $numbers->merge($known->keys())->unique()->sortDesc()->values()->map(function ($n) use ($project, $known) {
+            $pr = $known->get($n);
+            $latest = $project->builds()->where('pr_number', $n)->orderByDesc('number')->first();
+
+            return [
+                'number' => (int) $n,
+                'title' => $pr?->title,
+                'state' => $pr?->state ?? 'open',
+                'reviewStatus' => $pr?->review_status ?? 'open',
+                'headBranch' => $pr?->head_branch ?? $latest?->branch,
+                'baseBranch' => $pr?->base_branch ?? $project->default_branch,
+                'author' => $pr?->author,
+                'latestBuild' => $latest ? BuildController::row($latest) : null,
+            ];
+        });
+
+        return Inertia::render('pulls/index', [
+            'organization' => $organization->only('id', 'name', 'slug'),
+            'project' => ProjectController::projectProps($project),
+            'pulls' => $rows,
+        ]);
+    }
+
+    public function show(Request $request, Organization $organization, Project $project, int $number, UiReview $ui): Response
+    {
+        $this->scoped($organization, $project);
+        $role = $this->role($request, $organization);
+        $pr = PullRequest::firstOrNew(['project_id' => $project->id, 'number' => $number]);
+        $comparison = $ui->compare($project, $pr, $number);
+        $reviews = $pr->exists ? $pr->reviews()->with('user:id,name')->latest()->get() : collect();
+
+        return Inertia::render('pulls/show', [
+            'organization' => $organization->only('id', 'name', 'slug'),
+            'project' => ProjectController::projectProps($project),
+            'role' => $role->value,
+            'pull' => [
+                'number' => $number,
+                'title' => $pr->title,
+                'state' => $pr->state ?? 'open',
+                'reviewStatus' => $pr->review_status ?? 'open',
+                'headBranch' => $pr->head_branch ?? $comparison['head']?->branch,
+                'baseBranch' => $pr->base_branch ?? $project->default_branch,
+                'url' => $pr->url,
+                'author' => $pr->author,
+            ],
+            'head' => $comparison['head'] ? BuildController::row($comparison['head']) : null,
+            'base' => $comparison['base'] ? BuildController::row($comparison['base']) : null,
+            'changes' => collect($comparison['changes'])->map(fn ($c) => [
+                'key' => $c['key'],
+                'storyId' => $c['story']->story_id,
+                'title' => $c['story']->title,
+                'name' => $c['story']->name,
+                'browser' => $c['browser'],
+                'mode' => $c['mode'],
+                'kind' => $c['kind'],
+                'before' => Image::urlFor($c['before']?->image_sha),
+                'after' => Image::urlFor($c['after']?->image_sha),
+                'afterSnapshotId' => $c['after']?->id,
+                'reviewState' => $c['after']?->review_state?->value,
+            ])->values(),
+            'reviews' => $reviews->map(fn (PullRequestReview $r) => [
+                'id' => $r->id, 'state' => $r->state, 'body' => $r->body, 'user' => $r->user?->name, 'createdAt' => $r->created_at->toIso8601String(),
+            ]),
+        ]);
+    }
+
+    public function review(Request $request, Organization $organization, Project $project, int $number): RedirectResponse
+    {
+        $this->scoped($organization, $project);
+        $this->requireReviewer($request, $organization);
+        $data = $request->validate([
+            'state' => ['required', Rule::in(['approved', 'changes_requested', 'commented'])],
+            'body' => ['nullable', 'string', 'max:5000'],
+        ]);
+        $pr = PullRequest::firstOrCreate(['project_id' => $project->id, 'number' => $number], [
+            'head_branch' => Build::where('project_id', $project->id)->where('pr_number', $number)->latest('id')->value('branch'),
+            'base_branch' => $project->default_branch,
+        ]);
+        $pr->reviews()->create(['user_id' => $request->user()->id, 'state' => $data['state'], 'body' => $data['body'] ?? null]);
+        if ($data['state'] !== 'commented') {
+            $pr->update(['review_status' => $data['state']]);
+        }
+        ReportPullRequestToGitHub::dispatch($pr->id);
+
+        return back();
+    }
+}
