@@ -31,3 +31,11 @@ cd apps/web && composer run dev        # web + queue + vite
 pnpm --filter @tintype/capture build
 TINTYPE_SERVER=http://localhost:8000 TINTYPE_WORKER_TOKEN=dev node packages/capture/dist/cli.js worker
 ```
+
+## Known issue: MinIO image pull
+
+Under `container` 1.1.0, pulling `quay.io/minio/minio` hung on this machine,
+while Postgres and Redis from Docker Hub pulled fine. MinIO is optional for
+local development: leave `TINTYPE_DISK_DRIVER=local` (the default) and images
+and Storybooks are stored under `storage/app/tintype`. The S3 code path is
+exercised in docker compose and on AWS.
