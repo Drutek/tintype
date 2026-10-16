@@ -6,7 +6,7 @@
 name: tintype
 
 x-app: &app
-  image: ${TINTYPE_WEB_IMAGE:-ghcr.io/kevin-coyle/tintype-web:latest}
+  image: ${TINTYPE_WEB_IMAGE:-ghcr.io/drutek/tintype-web:latest}
   build:
     context: ../..
     dockerfile: apps/web/docker/Dockerfile
@@ -71,7 +71,7 @@ services:
       web: { condition: service_healthy }
 
   capture:
-    image: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/kevin-coyle/tintype-capture-chromium:latest}
+    image: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/drutek/tintype-capture-chromium:latest}
     build:
       context: ../..
       dockerfile: packages/capture/docker/Dockerfile
@@ -81,7 +81,7 @@ services:
       TINTYPE_SERVER: http://web:8080
       TINTYPE_WORKER_TOKEN: ${TINTYPE_WORKER_TOKEN:?set TINTYPE_WORKER_TOKEN in .env}
       TINTYPE_CONCURRENCY: ${TINTYPE_CAPTURE_CONCURRENCY:-4}
-      TINTYPE_CAPTURE_IMAGE_TAG: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/kevin-coyle/tintype-capture-chromium:latest}
+      TINTYPE_CAPTURE_IMAGE_TAG: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/drutek/tintype-capture-chromium:latest}
     shm_size: 1gb
     # Workers only need the web service; keep them off the data network.
     networks: [capture]

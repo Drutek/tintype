@@ -16,13 +16,13 @@ web service, over the private service-discovery name.
 
 ```hcl
 module "tintype" {
-  source          = "github.com/kevin-coyle/tintype//deploy/terraform/aws"
+  source          = "github.com/drutek/tintype//deploy/terraform/aws"
   region          = "us-east-1"
   domain_name     = "tintype.example.com"
   certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/…"
   capture_images = {
-    chromium = "ghcr.io/kevin-coyle/tintype-capture-chromium:latest"
-    firefox  = "ghcr.io/kevin-coyle/tintype-capture-firefox:latest"
+    chromium = "ghcr.io/drutek/tintype-capture-chromium:latest"
+    firefox  = "ghcr.io/drutek/tintype-capture-firefox:latest"
   }
 }
 ```

@@ -21,14 +21,14 @@ variable "certificate_arn" {
 
 variable "web_image" {
   type    = string
-  default = "ghcr.io/kevin-coyle/tintype-web:latest"
+  default = "ghcr.io/drutek/tintype-web:latest"
 }
 
 variable "capture_images" {
   description = "Capture image per browser; only listed browsers get workers"
   type        = map(string)
   default = {
-    chromium = "ghcr.io/kevin-coyle/tintype-capture-chromium:latest"
+    chromium = "ghcr.io/drutek/tintype-capture-chromium:latest"
   }
 }
 

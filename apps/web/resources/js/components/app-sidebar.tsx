@@ -21,12 +21,12 @@ import type { NavItem } from '@/types';
 const footerNavItems: NavItem[] = [
     {
         title: 'Repository',
-        href: 'https://github.com/kevin-coyle/tintype',
+        href: 'https://github.com/drutek/tintype',
         icon: FolderGit2,
     },
     {
         title: 'Documentation',
-        href: 'https://github.com/kevin-coyle/tintype/tree/main/docs',
+        href: 'https://github.com/drutek/tintype/tree/main/docs',
         icon: BookOpen,
     },
 ];

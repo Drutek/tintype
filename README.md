@@ -22,4 +22,4 @@ and reviewed in a web UI, and the result is reported to GitHub as a check run.
 
 ## License
 
-MIT
+MIT © Drutek

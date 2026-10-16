@@ -3,7 +3,7 @@
 ## 1. Run a server
 
 ```bash
-git clone https://github.com/kevin-coyle/tintype && cd tintype/deploy/compose
+git clone https://github.com/drutek/tintype && cd tintype/deploy/compose
 cp .env.example .env            # set APP_URL and the secrets
 docker compose run --rm web key # paste the output into APP_KEY in .env
 docker compose up -d

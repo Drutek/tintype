@@ -11,7 +11,7 @@
     "./package.json": "./package.json"
   },
   "files": ["dist", "preset.js"],
-  "repository": { "type": "git", "url": "https://github.com/kevin-coyle/tintype.git", "directory": "packages/storybook-addon" },
+  "repository": { "type": "git", "url": "https://github.com/drutek/tintype.git", "directory": "packages/storybook-addon" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
