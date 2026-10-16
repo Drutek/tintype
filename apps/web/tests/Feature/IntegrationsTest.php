@@ -157,4 +157,19 @@ class IntegrationsTest extends TestCase
         $this->assertSame([2, 1, 'passed'], [$b->a11y_count, $b->a11y_new_count, $b->status->value]);
         $this->getJson("/api/v1/builds/{$build->id}", ['Authorization' => 'Bearer '.$this->projectToken])->assertJsonPath('counts.a11yNew', 1);
     }
+
+    public function test_story_status_endpoint_returns_signed_images(): void
+    {
+        Storage::fake('tintype');
+        $project = $this->makeProject();
+        $img = app(ImageStore::class)->put($this->png(3, 3, [5, 5, 5]));
+        $this->completedBuild($project, 'aaa1111', 'main', ['button--primary' => ['sha' => $img->sha256]]);
+        $res = $this->getJson('/api/v1/stories/button--primary/status?branch=main', ['Authorization' => 'Bearer '.$this->projectToken])
+            ->assertOk()->assertJsonPath('build.number', 1)->assertJsonPath('snapshots.0.status', 'unchanged');
+        $url = $res->json('snapshots.0.image');
+        $this->assertStringContainsString('signature=', $url);
+        $this->get($url)->assertOk()->assertHeader('Content-Type', 'image/png');
+        $this->get(preg_replace('/signature=[^&]+/', 'signature=bad', $url))->assertForbidden();
+        $this->getJson('/api/v1/stories/button--primary/status?branch=nope', ['Authorization' => 'Bearer '.$this->projectToken])->assertJson(['build' => null]);
+    }
 }

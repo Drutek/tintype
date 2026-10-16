@@ -35,6 +35,8 @@ Route::middleware('guest')->group(function () {
     Route::get('auth/oidc/callback', [OidcLoginController::class, 'callback'])->name('auth.oidc.callback');
 });
 
+Route::get('signed-images/{sha}', [ImageController::class, 'show'])->middleware('signed')->name('images.signed');
+
 Route::post('github/webhook', GitHubWebhookController::class)
     ->withoutMiddleware(ValidateCsrfToken::class)
     ->name('github.webhook');

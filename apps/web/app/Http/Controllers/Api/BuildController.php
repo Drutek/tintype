@@ -9,12 +9,14 @@ use App\Jobs\ProcessStorybookUpload;
 use App\Models\Build;
 use App\Models\Commit;
 use App\Models\Project;
+use App\Models\Snapshot;
 use App\Services\BaselineResolver;
 use App\Services\BuildService;
 use App\Services\ImageStore;
 use Illuminate\Filesystem\AwsS3V3Adapter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 
 class BuildController extends Controller
 {
@@ -91,6 +93,45 @@ class BuildController extends Controller
         return response()->json([
             'strategy' => $result['strategy'],
             'commits' => Build::whereIn('id', $result['build_ids'])->pluck('commit_sha')->unique()->values(),
+        ]);
+    }
+
+    /**
+     * Latest snapshots of one story on a branch (used by the Storybook addon).
+     * Image URLs are signed and short-lived so the browser never needs a token.
+     */
+    public function storyStatus(Request $request, string $storyId): JsonResponse
+    {
+        $project = $this->project($request);
+        $branch = $request->string('branch', $project->default_branch)->toString();
+        $build = $project->builds()->where('branch', $branch)
+            ->whereNotIn('status', [BuildStatus::Uploading->value, BuildStatus::Failed->value, BuildStatus::Canceled->value])
+            ->orderByDesc('number')->first();
+        if (! $build) {
+            return response()->json(['build' => null, 'snapshots' => []]);
+        }
+        $sign = fn (?string $sha) => $sha ? URL::temporarySignedRoute('images.signed', now()->addHour(), ['sha' => $sha]) : null;
+        $snapshots = $build->snapshots()->with('baseline')
+            ->whereHas('story', fn ($q) => $q->where('story_id', $storyId))
+            ->get()
+            ->map(fn (Snapshot $s) => [
+                'id' => $s->id,
+                'browser' => $s->browser,
+                'mode' => $s->mode_name,
+                'status' => $s->status->value,
+                'review' => $s->review_state?->value,
+                'image' => $sign($s->image_sha),
+                'baseline' => $sign($s->baseline?->image_sha),
+                'diff' => $sign($s->diff_sha),
+                'diffRatio' => $s->diff_ratio,
+                'error' => $s->error,
+                'a11y' => $s->a11y,
+                'reviewUrl' => $build->webUrl().'?snapshot='.$s->id,
+            ]);
+
+        return response()->json([
+            'build' => ['id' => $build->id, 'number' => $build->number, 'status' => $build->status->value, 'url' => $build->webUrl(), 'commit' => $build->commit_sha, 'branch' => $build->branch],
+            'snapshots' => $snapshots,
         ]);
     }
 

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Route;
 // CLI API (project token)
 Route::prefix('v1')->middleware(AuthenticateProjectToken::class)->group(function () {
     Route::post('builds', [BuildController::class, 'store'])->name('api.builds.store');
+    Route::get('stories/{storyId}/status', [BuildController::class, 'storyStatus'])->name('api.stories.status');
     Route::post('baseline-commits', [BuildController::class, 'baselineCommits'])->name('api.baseline-commits');
     Route::get('builds/{build:id}', [BuildController::class, 'show'])->name('api.builds.show');
     Route::put('builds/{build:id}/storybook', [BuildController::class, 'uploadStorybook'])->name('api.builds.storybook');

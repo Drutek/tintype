@@ -88,4 +88,15 @@ if [ -n "${E2E_REVIEW_UI:-1}" ] && [ -f "$ROOT/scripts/e2e-review.mjs" ]; then
   expect_exit 0 cli
 fi
 
+if [ "${E2E_ADDON:-1}" = 1 ]; then
+  log "Storybook addon shows build status"
+  SB_PORT=$((PORT + 1))
+  (cd "$SB" && TINTYPE_SERVER="http://127.0.0.1:$PORT" TINTYPE_PROJECT_TOKEN="$TOKEN" TINTYPE_BRANCH=main pnpm exec storybook dev -p "$SB_PORT" --ci --no-open >"$WORK/storybook.log" 2>&1) &
+  SB_PID=$!
+  for _ in $(seq 1 90); do curl -sf "http://127.0.0.1:$SB_PORT/index.json" >/dev/null && break; sleep 1; done
+  set +e; node "$ROOT/scripts/e2e-addon.mjs" "http://127.0.0.1:$SB_PORT" "Build 2" "${E2E_SCREENSHOTS:+$E2E_SCREENSHOTS/addon.png}"; ADDON_RC=$?; set -e
+  kill "$SB_PID" 2>/dev/null; lsof -ti "tcp:$SB_PORT" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true
+  [ "$ADDON_RC" = 0 ] || { tail -30 "$WORK/storybook.log"; exit 1; }
+fi
+
 log "E2E passed"
