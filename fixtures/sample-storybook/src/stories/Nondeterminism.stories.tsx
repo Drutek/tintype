@@ -8,7 +8,6 @@ export const CurrentDate: StoryObj = {
     <div>
       <p>Now: {new Date().toISOString()}</p>
       <p>Locale: {new Date().toLocaleString()}</p>
-      <p>performance.now() rounded: {Math.round(performance.now() / 1000)}</p>
     </div>
   ),
 };

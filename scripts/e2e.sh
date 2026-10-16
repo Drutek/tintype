@@ -13,9 +13,12 @@ export TINTYPE_DISK_DRIVER=local TINTYPE_DISK_ROOT=$WORK/storage
 export TINTYPE_WORKER_TOKEN=e2e-worker-token TINTYPE_ALLOW_ANY_ARCH=true TINTYPE_SHARD_SIZE=10
 export PHP_CLI_SERVER_WORKERS=8
 touch "$DB_DATABASE"
+if lsof -ti "tcp:$PORT" -sTCP:LISTEN >/dev/null 2>&1; then echo "port $PORT is already in use"; exit 1; fi
 
 cleanup() {
   [ -n "${SERVER_PID:-}" ] && kill "$SERVER_PID" 2>/dev/null || true
+  # php -S worker children outlive the parent; free the port explicitly.
+  lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true
   [ -n "${WORKER_PID:-}" ] && kill "$WORKER_PID" 2>/dev/null || true
   [ "${E2E_KEEP:-}" = 1 ] || rm -rf "$WORK"
 }
@@ -74,7 +77,7 @@ expect_exit 0 cli --exit-zero-on-changes
 
 if [ -n "${E2E_REVIEW_UI:-1}" ] && [ -f "$ROOT/scripts/e2e-review.mjs" ]; then
   log "Accept the changes in the review UI (Playwright)"
-  node "$ROOT/scripts/e2e-review.mjs" "http://127.0.0.1:$PORT" admin@example.com password acme fixture 4
+  node "$ROOT/scripts/e2e-review.mjs" "http://127.0.0.1:$PORT" admin@example.com password acme fixture 4 "${E2E_SCREENSHOTS:-}"
   log "Build 5: accepted baseline → passed"
   commit five
   expect_exit 0 cli

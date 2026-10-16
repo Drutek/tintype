@@ -72,6 +72,11 @@ The full list is in `packages/capture/src/capture.ts` and `page-scripts.ts`.
 
 ## Known limits
 
+- **`performance.now()` is not frozen.** Freezing it would break code that
+  measures elapsed time and animation frames. Stories must not render it, or
+  anything derived from load timing. Wrap such output in an ignore region
+  (`.tintype-ignore`).
+
 - **Rosetta vs native x86:** captures under Rosetta matched each other
   perfectly, but they are not guaranteed to match native x86_64 pixel for
   pixel. Workers report their architecture, and the server refuses non-x86
