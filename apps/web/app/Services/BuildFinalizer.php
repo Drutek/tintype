@@ -7,6 +7,8 @@ use App\Enums\ReviewState;
 use App\Enums\SnapshotStatus;
 use App\Events\BuildUpdated;
 use App\Jobs\ReportBuildToGitHub;
+use App\Jobs\ReportBuildToScm;
+use App\Jobs\SendBuildNotifications;
 use App\Models\Build;
 use App\Models\CaptureJob;
 use App\Models\Review;
@@ -90,6 +92,7 @@ class BuildFinalizer
                 'height' => $inherit ? $baseline->height : null,
                 'baseline_snapshot_id' => $baseline->id,
                 'ignore_regions' => $baseline->ignore_regions,
+                'a11y' => $inherit ? $baseline->a11y : null,
                 'params' => $inherit ? array_merge($baseline->params ?? [], ['inherited' => true]) : null,
             ]);
         }
@@ -103,6 +106,10 @@ class BuildFinalizer
             $source = 'cli';
         } elseif ($build->baseline_strategy === 'none' && ! Build::where('project_id', $build->project_id)->where('id', '<', $build->id)->whereNotIn('status', [BuildStatus::Failed->value, BuildStatus::Canceled->value])->exists()) {
             $source = 'first-build';
+        } elseif ($project->setting('rebaseline_pending') && $build->branch === $project->default_branch) {
+            // Admin asked to re-baseline (e.g. after a capture image upgrade): accept this build wholesale.
+            $source = 'rebaseline';
+            $project->forceFill(['settings' => array_merge($project->settings ?? [], ['rebaseline_pending' => false])])->save();
         } elseif ($project->setting('auto_accept_default_branch') && $build->branch === $project->default_branch) {
             $source = 'default-branch';
         }
@@ -133,6 +140,8 @@ class BuildFinalizer
             'skipped_count' => $c(SnapshotStatus::Skipped),
             'removed_count' => $c(SnapshotStatus::Removed),
             'inconsistent_count' => $c(SnapshotStatus::Inconsistent),
+            'a11y_count' => Snapshot::where('build_id', $build->id)->whereNotNull('a11y')->get(['a11y'])->sum(fn (Snapshot $s) => count($s->a11y ?? [])),
+            'a11y_new_count' => (int) Snapshot::where('build_id', $build->id)->sum('a11y_new_count'),
         ]);
     }
 
@@ -164,5 +173,7 @@ class BuildFinalizer
     public function afterStatusChange(Build $build): void
     {
         ReportBuildToGitHub::dispatch($build->id);
+        ReportBuildToScm::dispatch($build->id);
+        SendBuildNotifications::dispatch($build->id);
     }
 }

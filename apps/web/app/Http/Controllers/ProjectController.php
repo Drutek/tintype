@@ -10,6 +10,7 @@ use App\Models\Snapshot;
 use App\Models\Story;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
@@ -116,7 +117,7 @@ class ProjectController extends Controller
 
         return Inertia::render('projects/settings', [
             'organization' => $organization->only('id', 'name', 'slug'),
-            'project' => self::projectProps($project) + ['settings' => $project->resolvedSettings()],
+            'project' => self::projectProps($project) + ['settings' => $project->publicSettings()],
             'role' => $role->value,
             'newToken' => session('newToken'),
             'tokenPrefix' => $project->token_prefix,
@@ -148,13 +149,25 @@ class ProjectController extends Controller
             'settings.retention_days' => ['integer', 'between:1,3650'],
             'settings.storybook_public' => ['boolean'],
             'settings.ui_review' => ['boolean'],
+            'settings.a11y' => ['boolean'],
+            'settings.notify_webhook_url' => ['nullable', 'url:https,http', 'max:500'],
+            'settings.notify_slack_webhook_url' => ['nullable', 'url:https', 'max:500'],
+            'settings.scm' => [Rule::in(['github', 'gitlab', 'bitbucket'])],
+            'settings.scm_repository' => ['nullable', 'string', 'max:255'],
+            'settings.scm_url' => ['nullable', 'url:https,http', 'max:255'],
+            'scm_token' => ['nullable', 'string', 'max:500'],
         ]);
+        // Only user-editable keys; internal flags (rebaseline_pending, encrypted secrets) are set elsewhere.
+        $incoming = Arr::only($data['settings'] ?? [], array_diff(array_keys(Project::DEFAULT_SETTINGS), ['rebaseline_pending']));
         $project->fill([
             'name' => $data['name'],
             'default_branch' => $data['default_branch'],
             'github_repository' => $data['github_repository'] ?? null,
-            'settings' => array_merge($project->settings ?? [], $data['settings'] ?? []),
+            'settings' => array_merge($project->settings ?? [], $incoming),
         ]);
+        if (! empty($data['scm_token'])) {
+            $project->setScmToken($data['scm_token']);
+        }
         if ($project->isDirty('github_repository')) {
             $project->github_installation_id = null;
         }
@@ -169,6 +182,16 @@ class ProjectController extends Controller
         $this->requireManager($request, $organization);
 
         return back()->with('newToken', $project->rotateToken());
+    }
+
+    /** Accept the next default-branch build wholesale (after a capture-environment change). */
+    public function rebaseline(Request $request, Organization $organization, Project $project): RedirectResponse
+    {
+        $this->scoped($organization, $project);
+        $this->requireManager($request, $organization);
+        $project->forceFill(['settings' => array_merge($project->settings ?? [], ['rebaseline_pending' => true])])->save();
+
+        return back();
     }
 
     public function destroy(Request $request, Organization $organization, Project $project): RedirectResponse

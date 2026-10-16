@@ -31,6 +31,8 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed>|null $params
  * @property string|null $error
  * @property int|null $duration_ms
+ * @property list<array{id: string, impact: string|null, help: string, helpUrl: string, nodes: int, targets: list<string>}>|null $a11y
+ * @property int $a11y_new_count
  * @property int|null $reviewed_by
  * @property Carbon|null $reviewed_at
  * @property-read Build $build
@@ -49,6 +51,7 @@ class Snapshot extends Model
             'diff_regions' => 'array',
             'ignore_regions' => 'array',
             'params' => 'array',
+            'a11y' => 'array',
             'diff_ratio' => 'float',
             'reviewed_at' => 'datetime',
         ];

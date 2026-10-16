@@ -40,6 +40,8 @@ export interface SnapshotParams {
   /** Override the frozen clock for this story (ISO string). */
   fixedTime?: string;
   cropToViewport?: boolean;
+  /** Set false to skip accessibility checks for this story. */
+  a11y?: boolean;
 }
 
 export interface CaptureOptions {
@@ -56,6 +58,17 @@ export interface CaptureOptions {
   timeoutMs?: number;
   locale?: string;
   timezoneId?: string;
+  /** Run axe-core accessibility checks after each screenshot. */
+  a11y?: boolean;
+}
+
+export interface A11yViolation {
+  id: string;
+  impact: string | null;
+  help: string;
+  helpUrl: string;
+  nodes: number;
+  targets: string[];
 }
 
 export interface CaptureResult {
@@ -73,5 +86,7 @@ export interface CaptureResult {
   error?: string;
   /** Interaction-test / addon reports emitted with STORY_FINISHED. */
   reports?: unknown[];
+  /** axe-core violations (when a11y is enabled and not disabled for the story). */
+  a11y?: A11yViolation[] | null;
   durationMs: number;
 }

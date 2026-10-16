@@ -38,6 +38,7 @@ interface LeasedJob {
     fixedTime: string;
     deviceScaleFactor: number;
     viewport: { width: number; height: number };
+    a11y?: boolean;
   };
   leaseSeconds: number;
 }
@@ -60,6 +61,7 @@ export interface ResultPayload {
   params: Record<string, unknown>;
   error: string | null;
   durationMs: number;
+  a11y: CaptureResult['a11y'];
 }
 
 const RETAKES = 2;
@@ -157,6 +159,7 @@ export class CaptureWorker {
       fixedTime: job.settings.fixedTime,
       deviceScaleFactor: job.settings.deviceScaleFactor,
       defaultViewport: job.settings.viewport,
+      a11y: job.settings.a11y ?? false,
     });
     let lost = false;
     const beat = setInterval(async () => {
@@ -237,6 +240,7 @@ export class CaptureWorker {
       params: r.params as Record<string, unknown>,
       error: r.error ?? null,
       durationMs: r.durationMs,
+      a11y: r.a11y ?? null,
     };
     if (!r.image) return out;
     const uploads: Buffer[] = [r.image];

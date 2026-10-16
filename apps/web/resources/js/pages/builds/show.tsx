@@ -167,6 +167,7 @@ export default function BuildShow({ organization, project, role, build, snapshot
                         {build.counts.snapshots} snapshots · {build.counts.changed} changed · {build.counts.new} new · {build.counts.errors} errors · {build.counts.unchanged} unchanged
                         {build.counts.inconsistent > 0 && ` · ${build.counts.inconsistent} inconsistent`}
                         {build.counts.removed > 0 && ` · ${build.counts.removed} removed`}
+                        {build.counts.a11y > 0 && ` · ${build.counts.a11y} accessibility issues (${build.counts.a11yNew} new)`}
                     </span>
                     <span>
                         Baseline:{' '}
@@ -232,6 +233,14 @@ export default function BuildShow({ organization, project, role, build, snapshot
                                             </span>
                                             <span className="flex shrink-0 items-center gap-1">
                                                 {s.commentCount > 0 && <MessageSquare className="size-3 text-muted-foreground" />}
+                                                {(s.a11y?.length ?? 0) > 0 && (
+                                                    <span
+                                                        title={`${s.a11y?.length} accessibility issues${s.a11yNew ? `, ${s.a11yNew} new` : ''}`}
+                                                        className={cn('rounded px-1 text-[10px] font-semibold', s.a11yNew ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-muted text-muted-foreground')}
+                                                    >
+                                                        a11y {s.a11y?.length}
+                                                    </span>
+                                                )}
                                                 <SnapshotStatusBadge status={s.status} review={s.review} />
                                             </span>
                                         </button>
@@ -322,6 +331,11 @@ export default function BuildShow({ organization, project, role, build, snapshot
                                     )}
                                 </div>
                                 <div className="flex-1 overflow-auto bg-muted/30 p-4">
+                                    {current.captureEnvChanged && (
+                                        <p className="mb-3 rounded-md bg-amber-500/10 p-3 text-xs text-amber-800 dark:text-amber-200">
+                                            The baseline was captured with a different capture image version. Differences may come from the browser upgrade rather than your code; an admin can rebaseline from project settings.
+                                        </p>
+                                    )}
                                     {current.error && current.image && (
                                         <pre className="mb-3 overflow-auto rounded-md bg-red-500/10 p-3 text-xs whitespace-pre-wrap text-red-700 dark:text-red-300">{current.error}</pre>
                                     )}
@@ -345,6 +359,29 @@ export default function BuildShow({ organization, project, role, build, snapshot
                                             Keys: <kbd>j</kbd>/<kbd>k</kbd> move · <kbd>a</kbd> accept · <kbd>d</kbd> deny · <kbd>u</kbd> undo · <kbd>1</kbd>–<kbd>5</kbd> views · <kbd>s</kbd> spotlight · <kbd>f</kbd> zoom
                                         </p>
                                     </div>
+                                    {current.a11y && current.a11y.length > 0 && (
+                                        <div className="lg:col-span-2">
+                                            <h3 className="mb-2 font-medium">
+                                                Accessibility ({current.a11y.length}
+                                                {current.a11yNew > 0 && <span className="text-red-600">, {current.a11yNew} new</span>})
+                                            </h3>
+                                            <ul className="space-y-1 text-xs" data-testid="a11y-violations">
+                                                {current.a11y.map((v) => (
+                                                    <li key={v.id} className="flex flex-wrap gap-2">
+                                                        <span className={cn('rounded px-1 font-medium', v.impact === 'critical' || v.impact === 'serious' ? 'bg-red-500/15 text-red-700 dark:text-red-300' : 'bg-muted')}>
+                                                            {v.impact ?? 'minor'}
+                                                        </span>
+                                                        <a href={v.helpUrl} target="_blank" rel="noreferrer" className="underline">
+                                                            {v.help}
+                                                        </a>
+                                                        <span className="text-muted-foreground">
+                                                            {v.nodes} element{v.nodes === 1 ? '' : 's'}: <code>{v.targets.join(', ')}</code>
+                                                        </span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
                                     <div>
                                         <h3 className="mb-2 font-medium">Comments</h3>
                                         <ul className="mb-2 space-y-2">

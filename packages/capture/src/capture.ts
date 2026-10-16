@@ -1,9 +1,39 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { chromium, firefox, webkit, type Browser, type BrowserContext, type Page, type Route } from 'playwright';
 import { pngSize, sha256 } from '@tintype/diff';
 import { DEFAULT_VIEWPORT, globalsQuery, resolveModes, snapshotParams } from './modes.js';
 import { freezeAnimations, initScript, measure, nextFrames, readParameters, settleAssets } from './page-scripts.js';
-import type { BrowserName, CaptureMode, CaptureOptions, CaptureResult, SnapshotParams } from './types.js';
+import type { A11yViolation, BrowserName, CaptureMode, CaptureOptions, CaptureResult, SnapshotParams } from './types.js';
+
+let axeSource: string | null = null;
+function axe(): string {
+  axeSource ??= readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
+  return axeSource;
+}
+
+/** Run axe-core against the story root and summarise violations. */
+export async function runA11y(page: Page): Promise<A11yViolation[] | null> {
+  try {
+    await page.addScriptTag({ content: axe() });
+    return await page.evaluate(async () => {
+      const w = window as unknown as { axe: { run: (ctx: unknown, opts: unknown) => Promise<{ violations: any[] }> } };
+      const root = document.querySelector('#storybook-root') ?? document.body;
+      const res = await w.axe.run(root, { resultTypes: ['violations'] });
+      return res.violations.map((v) => ({
+        id: v.id as string,
+        impact: (v.impact ?? null) as string | null,
+        help: v.help as string,
+        helpUrl: v.helpUrl as string,
+        nodes: v.nodes.length as number,
+        targets: v.nodes.slice(0, 5).map((n: { target: string[] }) => n.target.join(' ')),
+      }));
+    });
+  } catch {
+    return null;
+  }
+}
 
 export const CHROMIUM_ARGS = [
   '--disable-gpu',
@@ -73,6 +103,7 @@ export class StoryCapturer {
       deviceScaleFactor: 1,
       fixedTime: DEFAULT_FIXED_TIME,
       timeoutMs: 30_000,
+      a11y: false,
       locale: 'en-US',
       timezoneId: 'UTC',
       allowedHosts: [],
@@ -230,6 +261,7 @@ export class StoryCapturer {
         type: 'png',
       });
       const { width, height } = pngSize(image);
+      const a11y = this.opts.a11y && params.a11y !== false ? await runA11y(page) : null;
       const dsf = this.opts.deviceScaleFactor;
       const failed = state.status === 'error' || state.errors.length > 0;
       return {
@@ -241,6 +273,7 @@ export class StoryCapturer {
         height,
         ignoreRegions: geo.ignore.map((r) => ({ x: r.x * dsf, y: r.y * dsf, width: r.width * dsf, height: r.height * dsf })),
         reports: state.reports,
+        a11y,
         status: failed ? 'error' : 'captured',
         error: failed ? state.errors.join('\n') || 'Story failed' : undefined,
         durationMs: Date.now() - started,

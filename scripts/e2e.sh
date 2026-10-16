@@ -58,7 +58,7 @@ git init -q -b main && git config user.email e2e@example.com && git config user.
 SB=$ROOT/fixtures/sample-storybook
 ONLY=(--only-story-names 'components-*' --only-story-names 'foundations-*' --only-story-names 'edge-cases-media--*' \
       --only-story-names 'edge-cases-layout--*' --only-story-names 'edge-cases-motion--*' --only-story-names 'edge-cases-nondeterminism--*' \
-      --only-story-names 'edge-cases-interactions--filled-in')
+      --only-story-names 'edge-cases-interactions--filled-in' --only-story-names 'edge-cases-accessibility--*')
 cli() { node "$ROOT/packages/cli/dist/cli.js" --server "http://127.0.0.1:$PORT" --project-token "$TOKEN" --storybook-build-dir "$SB/storybook-static" "${ONLY[@]}" "$@"; }
 commit() { echo "$1" > state.txt && git add -A && git commit -qm "$1"; }
 expect_exit() { local want=$1; shift; set +e; "$@"; local got=$?; set -e; [ "$got" = "$want" ] || { echo "expected exit $want, got $got"; tail -50 "$WORK/worker.log"; exit 1; }; }

@@ -39,6 +39,13 @@ class Project extends Model
         'retention_days' => 90,
         'storybook_public' => false,
         'ui_review' => true,
+        'rebaseline_pending' => false,
+        'notify_webhook_url' => null,
+        'notify_slack_webhook_url' => null,
+        'a11y' => true,
+        'scm' => 'github', // github | gitlab | bitbucket
+        'scm_repository' => null,
+        'scm_url' => null,
     ];
 
     protected function casts(): array
@@ -79,6 +86,33 @@ class Project extends Model
     public function resolvedSettings(): array
     {
         return array_merge(self::DEFAULT_SETTINGS, $this->settings ?? []);
+    }
+
+    /** Encrypted access token for GitLab/Bitbucket status reporting. */
+    public function scmToken(): ?string
+    {
+        $value = $this->settings['scm_token_encrypted'] ?? null;
+
+        return is_string($value) && $value !== '' ? decrypt($value) : null;
+    }
+
+    public function setScmToken(?string $token): void
+    {
+        $this->settings = array_merge($this->settings ?? [], ['scm_token_encrypted' => $token ? encrypt($token) : null]);
+    }
+
+    /**
+     * Settings safe to show in the UI (secrets removed).
+     *
+     * @return array<string, mixed>
+     */
+    public function publicSettings(): array
+    {
+        $s = $this->resolvedSettings();
+        $s['scm_token_set'] = ! empty($s['scm_token_encrypted']);
+        unset($s['scm_token_encrypted']);
+
+        return $s;
     }
 
     /** Generate a new project token; returns the plaintext once. */

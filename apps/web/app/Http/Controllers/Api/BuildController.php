@@ -174,6 +174,8 @@ class BuildController extends Controller
                 'skipped' => $build->skipped_count,
                 'removed' => $build->removed_count,
                 'inconsistent' => $build->inconsistent_count,
+                'a11y' => $build->a11y_count,
+                'a11yNew' => $build->a11y_new_count,
             ],
             'autoAccepted' => $build->options['autoAccepted'] ?? null,
             'changes' => $changes,

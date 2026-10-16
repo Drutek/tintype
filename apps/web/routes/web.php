@@ -51,6 +51,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('settings', [ProjectController::class, 'settings'])->name('projects.settings');
             Route::put('settings', [ProjectController::class, 'update'])->name('projects.update');
             Route::post('token', [ProjectController::class, 'rotateToken'])->name('projects.token');
+            Route::post('rebaseline', [ProjectController::class, 'rebaseline'])->name('projects.rebaseline');
             Route::delete('/', [ProjectController::class, 'destroy'])->name('projects.destroy');
 
             Route::get('builds/{build}', [BuildController::class, 'show'])->whereNumber('build')->name('builds.show');

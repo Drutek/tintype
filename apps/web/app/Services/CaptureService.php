@@ -133,6 +133,7 @@ class CaptureService
                     'fixedTime' => (string) $settings['fixed_time'],
                     'deviceScaleFactor' => (float) $settings['device_scale_factor'],
                     'viewport' => ['width' => (int) $settings['viewport_width'], 'height' => (int) $settings['viewport_height']],
+                    'a11y' => (bool) $settings['a11y'],
                 ],
                 'leaseSeconds' => CaptureJob::LEASE_SECONDS,
             ],
@@ -206,6 +207,13 @@ class CaptureService
             default => SnapshotStatus::Error,
         };
         $review = $status->needsReview() ? ReviewState::Pending : null;
+        $params = is_array($r['params'] ?? null) ? $r['params'] : [];
+        $a11y = is_array($r['a11y'] ?? null) ? array_values($r['a11y']) : null;
+        $known = array_column($baseline->a11y ?? [], 'id');
+        $a11yNew = $a11y === null ? 0 : count(array_filter($a11y, fn ($v) => is_array($v) && ! in_array($v['id'] ?? null, $known, true)));
+        if ($status === SnapshotStatus::Changed && $this->baselines->captureEnvChanged($build, $baseline)) {
+            $params['captureEnvChanged'] = true;
+        }
 
         Snapshot::updateOrCreate(
             ['build_id' => $build->id, 'story_id' => $story->id, 'browser' => $browser, 'mode_key' => $modeKey],
@@ -223,7 +231,9 @@ class CaptureService
                 'diff_ratio' => $status === SnapshotStatus::Changed ? ($r['diffRatio'] ?? null) : null,
                 'diff_regions' => $status === SnapshotStatus::Changed ? ($r['diffRegions'] ?? []) : null,
                 'ignore_regions' => $r['ignoreRegions'] ?? [],
-                'params' => $r['params'] ?? null,
+                'params' => $params,
+                'a11y' => $a11y,
+                'a11y_new_count' => $a11yNew,
                 'error' => $r['error'] ?? null,
                 'duration_ms' => $r['durationMs'] ?? null,
             ],

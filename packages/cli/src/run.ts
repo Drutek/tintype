@@ -51,7 +51,7 @@ export function buildStorybook(script: string, outDir: string, statsJson: boolea
 
 function summaryLine(s: BuildSummary): string {
   const c = s.counts;
-  return `${c.snapshots ?? 0} snapshots · ${c.changed ?? 0} changed · ${c.new ?? 0} new · ${c.errors ?? 0} errors · ${c.unchanged ?? 0} unchanged${c.inconsistent ? ` · ${c.inconsistent} inconsistent` : ''}${c.removed ? ` · ${c.removed} removed` : ''}`;
+  return `${c.snapshots ?? 0} snapshots · ${c.changed ?? 0} changed · ${c.new ?? 0} new · ${c.errors ?? 0} errors · ${c.unchanged ?? 0} unchanged${c.inconsistent ? ` · ${c.inconsistent} inconsistent` : ''}${c.removed ? ` · ${c.removed} removed` : ''}${c.a11y ? ` · ${c.a11y} a11y issues (${c.a11yNew ?? 0} new)` : ''}`;
 }
 
 function stepSummary(s: BuildSummary): void {

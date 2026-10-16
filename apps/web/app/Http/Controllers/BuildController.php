@@ -159,6 +159,8 @@ class BuildController extends Controller
                 'removed' => $build->removed_count,
                 'inconsistent' => $build->inconsistent_count,
                 'stories' => $build->story_count,
+                'a11y' => $build->a11y_count,
+                'a11yNew' => $build->a11y_new_count,
             ],
         ];
     }
@@ -197,6 +199,9 @@ class BuildController extends Controller
             'ignoreRegions' => $s->ignore_regions ?? [],
             'error' => $s->error,
             'inherited' => (bool) ($s->params['inherited'] ?? false),
+            'captureEnvChanged' => (bool) ($s->params['captureEnvChanged'] ?? false),
+            'a11y' => $s->a11y,
+            'a11yNew' => $s->a11y_new_count,
             'commentCount' => $s->comments_count ?? 0,
             'needsReview' => $s->status->needsReview(),
             'unchangedSinceBaseline' => $s->status === SnapshotStatus::Unchanged,

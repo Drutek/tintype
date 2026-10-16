@@ -6,7 +6,7 @@ import { ProjectNav, projectBreadcrumbs } from '@/components/tintype/project-nav
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { destroy as destroyProject, token as rotateToken, update as updateProject } from '@/routes/projects';
+import { destroy as destroyProject, rebaseline, token as rotateToken, update as updateProject } from '@/routes/projects';
 import type { OrgRef, ProjectRef, Role } from '@/types';
 
 interface Settings {
@@ -22,6 +22,14 @@ interface Settings {
     retention_days: number;
     storybook_public: boolean;
     ui_review: boolean;
+    a11y: boolean;
+    rebaseline_pending: boolean;
+    notify_webhook_url: string | null;
+    notify_slack_webhook_url: string | null;
+    scm: 'github' | 'gitlab' | 'bitbucket';
+    scm_repository: string | null;
+    scm_url: string | null;
+    scm_token_set: boolean;
 }
 
 interface Props {
@@ -61,6 +69,7 @@ export default function ProjectSettings({ organization, project, role, newToken,
         default_branch: project.defaultBranch,
         github_repository: project.repository ?? '',
         settings: project.settings,
+        scm_token: '',
     });
     const s = form.data.settings;
     const set = <K extends keyof Settings>(k: K, v: Settings[K]) => form.setData('settings', { ...s, [k]: v });
@@ -124,6 +133,32 @@ export default function ProjectSettings({ organization, project, role, newToken,
                                 <InputError message={err.github_repository} />
                             </div>
                         </div>
+                        <div className="grid gap-4 sm:grid-cols-3">
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="scm">Status reporting</Label>
+                                <select id="scm" value={s.scm} onChange={(e) => set('scm', e.target.value as Settings['scm'])} className="h-9 rounded-md border bg-background px-2 text-sm">
+                                    <option value="github">GitHub (App check runs)</option>
+                                    <option value="gitlab">GitLab commit status</option>
+                                    <option value="bitbucket">Bitbucket build status</option>
+                                </select>
+                            </div>
+                            {s.scm !== 'github' && (
+                                <>
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor="scm_repo">{s.scm === 'gitlab' ? 'Project path or id' : 'workspace/repo'}</Label>
+                                        <Input id="scm_repo" value={s.scm_repository ?? ''} onChange={(e) => set('scm_repository', e.target.value || null)} />
+                                    </div>
+                                    <div className="grid gap-1.5">
+                                        <Label htmlFor="scm_token">Access token {s.scm_token_set && '(set)'}</Label>
+                                        <Input id="scm_token" type="password" placeholder={s.scm_token_set ? '••••••••' : ''} value={form.data.scm_token} onChange={(e) => form.setData('scm_token', e.target.value)} />
+                                    </div>
+                                    <div className="grid gap-1.5 sm:col-span-3">
+                                        <Label htmlFor="scm_url">Self-hosted URL (optional)</Label>
+                                        <Input id="scm_url" placeholder={s.scm === 'gitlab' ? 'https://gitlab.example.com' : 'https://api.bitbucket.org'} value={s.scm_url ?? ''} onChange={(e) => set('scm_url', e.target.value || null)} />
+                                    </div>
+                                </>
+                            )}
+                        </div>
                         <div className="grid gap-1.5">
                             <Label>Browsers</Label>
                             <div className="flex gap-4 text-sm">
@@ -174,6 +209,18 @@ export default function ProjectSettings({ organization, project, role, newToken,
                                 onChange={(e) => set('allowed_hosts', e.target.value.split('\n').map((h) => h.trim()).filter(Boolean))}
                             />
                         </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="hook">Webhook URL (build events, JSON)</Label>
+                                <Input id="hook" placeholder="https://…" value={s.notify_webhook_url ?? ''} onChange={(e) => set('notify_webhook_url', e.target.value || null)} />
+                                <InputError message={err['settings.notify_webhook_url']} />
+                            </div>
+                            <div className="grid gap-1.5">
+                                <Label htmlFor="slack">Slack incoming webhook</Label>
+                                <Input id="slack" placeholder="https://hooks.slack.com/…" value={s.notify_slack_webhook_url ?? ''} onChange={(e) => set('notify_slack_webhook_url', e.target.value || null)} />
+                                <InputError message={err['settings.notify_slack_webhook_url']} />
+                            </div>
+                        </div>
                         <div className="grid gap-1.5">
                             <Label htmlFor="retention">Keep builds for (days)</Label>
                             <Input id="retention" type="number" className="max-w-32" value={s.retention_days} onChange={(e) => set('retention_days', Number(e.target.value))} />
@@ -184,6 +231,7 @@ export default function ProjectSettings({ organization, project, role, newToken,
                                 ['auto_accept_default_branch', 'Auto-accept changes on the default branch'],
                                 ['storybook_public', 'Published Storybooks are public (no login)'],
                                 ['ui_review', 'Report a "UI Review" check on pull requests'],
+                                ['a11y', 'Run accessibility checks (axe) on every story'],
                             ] as const
                         ).map(([k, label]) => (
                             <label key={k} className="flex items-center gap-2 text-sm">
@@ -198,6 +246,18 @@ export default function ProjectSettings({ organization, project, role, newToken,
                         )}
                         {form.recentlySuccessful && <p className="text-sm text-muted-foreground">Saved.</p>}
                     </fieldset>
+                    {canManage && (
+                        <div className="rounded-lg border p-4">
+                            <Heading
+                                variant="small"
+                                title="Rebaseline"
+                                description="After upgrading the capture image, accept the next build on the default branch wholesale so new browser rendering becomes the baseline."
+                            />
+                            <Button type="button" variant="outline" size="sm" className="mt-3" disabled={s.rebaseline_pending} onClick={() => router.post(rebaseline.url(p))}>
+                                {s.rebaseline_pending ? 'Next default-branch build will be accepted' : 'Rebaseline on next build'}
+                            </Button>
+                        </div>
+                    )}
                     {canManage && (
                         <div className="rounded-lg border border-red-500/40 p-4">
                             <Heading variant="small" title="Delete project" description="Removes all builds and snapshots." />

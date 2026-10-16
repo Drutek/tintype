@@ -53,6 +53,17 @@ export interface BuildCounts {
     removed: number;
     inconsistent: number;
     stories: number;
+    a11y: number;
+    a11yNew: number;
+}
+
+export interface A11yViolation {
+    id: string;
+    impact: string | null;
+    help: string;
+    helpUrl: string;
+    nodes: number;
+    targets: string[];
 }
 
 export interface BuildRow {
@@ -108,6 +119,9 @@ export interface SnapshotProps {
     ignoreRegions: Rect[];
     error: string | null;
     inherited: boolean;
+    captureEnvChanged: boolean;
+    a11y: A11yViolation[] | null;
+    a11yNew: number;
     commentCount: number;
     needsReview: boolean;
     history: {
