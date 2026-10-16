@@ -1,0 +1,49 @@
+name: Publish npm packages (GitHub Packages)
+
+# Publishes the CLI and Storybook addon to GitHub's npm registry as
+# @drutek/tintype-cli and @drutek/tintype-storybook-addon. Run manually, or by
+# pushing a tag like v0.1.0.
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://npm.pkg.github.com
+          scope: '@drutek'
+      - run: corepack enable && pnpm install --frozen-lockfile && pnpm build
+      - name: Rename to the @drutek scope and pin workspace deps
+        run: |
+          node -e '
+            const fs = require("fs");
+            const rename = { "@tintype/cli": "@drutek/tintype-cli", "@tintype/storybook-addon": "@drutek/tintype-storybook-addon" };
+            for (const dir of ["packages/cli", "packages/storybook-addon"]) {
+              const p = JSON.parse(fs.readFileSync(`${dir}/package.json`, "utf8"));
+              p.name = rename[p.name];
+              p.publishConfig = { registry: "https://npm.pkg.github.com", access: "public" };
+              for (const [dep, v] of Object.entries(p.dependencies ?? {})) {
+                if (rename[dep]) { delete p.dependencies[dep]; p.dependencies[rename[dep]] = `^${JSON.parse(fs.readFileSync("packages/cli/package.json","utf8")).version}`; }
+              }
+              fs.writeFileSync(`${dir}/package.json`, JSON.stringify(p, null, 2));
+            }
+            // The addon imports the CLI by its package name.
+            const f = "packages/storybook-addon/dist/server.js";
+            fs.writeFileSync(f, fs.readFileSync(f, "utf8").replaceAll("@tintype/cli", "@drutek/tintype-cli"));
+          '
+      - run: npm publish
+        working-directory: packages/cli
+        env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
+      - run: npm publish
+        working-directory: packages/storybook-addon
+        env: { NODE_AUTH_TOKEN: '${{ secrets.GITHUB_TOKEN }}' }
