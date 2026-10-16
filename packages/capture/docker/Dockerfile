@@ -1,14 +1,16 @@
-# Tintype capture image (Chromium). Every published tag is immutable: the
-# digest is recorded on each build and baselines are tied to it.
+# Tintype capture image. One image per browser (build-arg BROWSER=chromium|firefox|webkit).
+# Every published tag is immutable: the image is recorded on each build and
+# baselines are tied to its major version.
 # Base pinned by digest — bump deliberately, then rebaseline.
 FROM mcr.microsoft.com/playwright:v1.64.1-noble@sha256:7852dc5a7d72f5fe458a597d690f6c42fbc8e9e26ddfa95f8e6ef552558d9bbf
 
 ARG UBUNTU_SNAPSHOT=20261001T000000Z
+ARG BROWSER=chromium
 ENV TZ=UTC \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8 \
     NODE_ENV=production \
-    TINTYPE_CAPTURE_IMAGE=chromium
+    TINTYPE_BROWSERS=${BROWSER}
 
 # Fonts come from a dated Ubuntu snapshot so rebuilds are reproducible.
 RUN apt-get update --snapshot "${UBUNTU_SNAPSHOT}" \

@@ -7,11 +7,21 @@ import AuthLayout from '@/layouts/auth-layout';
 import SettingsLayout from '@/layouts/settings/layout';
 import { configureEcho } from '@laravel/echo-react';
 
-configureEcho({
-    broadcaster: 'reverb',
-});
+// Realtime is configured at runtime by the server (see config/tintype.php).
+const realtime = (window as unknown as { tintypeRealtime?: { key: string; host: string; port: number; scheme: string } | null }).tintypeRealtime;
+if (realtime) {
+    configureEcho({
+        broadcaster: 'reverb',
+        key: realtime.key,
+        wsHost: realtime.host,
+        wsPort: realtime.port,
+        wssPort: realtime.port,
+        forceTLS: realtime.scheme === 'https',
+        enabledTransports: ['ws', 'wss'],
+    });
+}
 
-const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
+const appName = import.meta.env.VITE_APP_NAME || 'Tintype';
 
 void createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

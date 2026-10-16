@@ -44,7 +44,7 @@ class BuildController extends Controller
             ->withCount('comments')
             ->get()
             ->sortBy([
-                fn (Snapshot $a, Snapshot $b) => (self::ORDER[$a->status->value] ?? 9) <=> (self::ORDER[$b->status->value] ?? 9),
+                fn (Snapshot $a, Snapshot $b) => self::ORDER[$a->status->value] <=> self::ORDER[$b->status->value],
                 fn (Snapshot $a, Snapshot $b) => strcmp($a->story->title.$a->story->name.$a->mode_name, $b->story->title.$b->story->name.$b->mode_name),
             ])
             ->values()

@@ -30,17 +30,22 @@ log "Preparing server ($WORK)"
 (cd "$WEB" && php artisan migrate:fresh --force -q)
 (cd "$WEB" && php artisan tintype:admin admin@example.com --password=password --org=Acme -q)
 TOKEN=$(cd "$WEB" && php artisan tintype:project acme Fixture --json | tail -1 | python3 -c 'import json,sys;print(json.load(sys.stdin)["token"])')
-(cd "$WEB" && php artisan serve --host=127.0.0.1 --port="$PORT" >"$WORK/server.log" 2>&1) &
+HOST_IP=${E2E_HOST_IP:-192.168.64.1}
+if [ "${E2E_WORKER:-native}" = container ]; then
+  BIND=0.0.0.0
+  export TINTYPE_INTERNAL_URL=http://$HOST_IP:$PORT   # what the containerised worker can reach
+else
+  BIND=127.0.0.1
+fi
+(cd "$WEB" && php artisan serve --host="$BIND" --port="$PORT" >"$WORK/server.log" 2>&1) &
 SERVER_PID=$!
 for _ in $(seq 1 50); do curl -sf "http://127.0.0.1:$PORT/up" >/dev/null && break; sleep 0.2; done
 
 log "Starting capture worker"
 if [ "${E2E_WORKER:-native}" = container ]; then
   RUNTIME=${CONTAINER_RUNTIME:-container}
-  HOST_IP=${E2E_HOST_IP:-192.168.64.1}
-  export APP_URL=http://$HOST_IP:$PORT   # storybook URLs must be reachable from the container
   $RUNTIME run --rm --arch amd64 --rosetta -e TINTYPE_SERVER=http://$HOST_IP:$PORT -e TINTYPE_WORKER_TOKEN -e TINTYPE_POLL_MS=500 \
-    tintype/capture-chromium:dev worker >"$WORK/worker.log" 2>&1 &
+    ${E2E_CAPTURE_IMAGE:-tintype/capture-chromium:dev} worker >"$WORK/worker.log" 2>&1 &
 else
   TINTYPE_SERVER=http://127.0.0.1:$PORT TINTYPE_POLL_MS=300 node "$ROOT/packages/capture/dist/cli.js" worker >"$WORK/worker.log" 2>&1 &
 fi

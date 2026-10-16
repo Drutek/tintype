@@ -39,9 +39,9 @@ class OrganizationController extends Controller
             'organization' => ['id' => $organization->id, 'name' => $organization->name, 'slug' => $organization->slug],
             'role' => $role->value,
             'projects' => $organization->projects()->orderBy('name')->get(['id', 'name', 'slug', 'github_repository', 'default_branch']),
-            'members' => $organization->users()->orderBy('name')->get()->map(fn (User $u) => [
+            'members' => $organization->users()->orderBy('name')->cursor()->map(fn ($u) => [
                 'id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'role' => $u->pivot->getAttribute('role'),
-            ]),
+            ])->collect(),
             'newToken' => session('newToken'),
             'newPassword' => session('newPassword'),
         ]);

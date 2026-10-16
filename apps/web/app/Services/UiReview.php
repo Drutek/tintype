@@ -20,7 +20,7 @@ class UiReview
     /** @return array{head: Build|null, base: Build|null, changes: list<array<string, mixed>>} */
     public function compare(Project $project, PullRequest $pr, int $number): array
     {
-        $complete = array_map(fn ($s) => $s->value, array_filter(BuildStatus::cases(), fn ($s) => $s->isComplete()));
+        $complete = array_values(array_map(fn ($s) => $s->value, array_filter(BuildStatus::cases(), fn ($s) => $s->isComplete())));
         $head = Build::where('project_id', $project->id)
             ->where(fn ($q) => $q->where('pr_number', $number)->when($pr->head_branch, fn ($q) => $q->orWhere('branch', $pr->head_branch)))
             ->whereIn('status', $complete)->orderByDesc('number')->first();

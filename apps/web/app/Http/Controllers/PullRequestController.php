@@ -37,10 +37,10 @@ class PullRequestController extends Controller
             return [
                 'number' => (int) $n,
                 'title' => $pr?->title,
-                'state' => $pr?->state ?? 'open',
-                'reviewStatus' => $pr?->review_status ?? 'open',
-                'headBranch' => $pr?->head_branch ?? $latest?->branch,
-                'baseBranch' => $pr?->base_branch ?? $project->default_branch,
+                'state' => $pr->state ?? 'open',
+                'reviewStatus' => $pr->review_status ?? 'open',
+                'headBranch' => $pr->head_branch ?? $latest?->branch,
+                'baseBranch' => $pr->base_branch ?? $project->default_branch,
                 'author' => $pr?->author,
                 'latestBuild' => $latest ? BuildController::row($latest) : null,
             ];

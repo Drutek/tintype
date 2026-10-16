@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Middleware\AuthenticateProjectToken;
+use App\Http\Middleware\AuthenticateWorker;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;
@@ -7,6 +9,7 @@ use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -18,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
+
+        // Authenticate API tokens before route-model binding so unknown ids don't leak as 404s.
+        $middleware->prependToPriorityList(SubstituteBindings::class, AuthenticateProjectToken::class);
+        $middleware->prependToPriorityList(SubstituteBindings::class, AuthenticateWorker::class);
 
         $middleware->web(append: [
             HandleAppearance::class,

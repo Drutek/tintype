@@ -15,14 +15,21 @@ class CreateProject extends Command
 
     public function handle(): int
     {
-        $org = Organization::firstOrCreate(['slug' => Str::slug($this->argument('org'))], ['name' => $this->argument('org')]);
-        $project = Project::firstOrNew(['organization_id' => $org->id, 'slug' => Str::slug($this->argument('name'))]);
-        $project->fill(['name' => $this->argument('name'), 'default_branch' => $this->option('branch'), 'github_repository' => $this->option('repo')]);
+        $orgName = $this->argument('org');
+        $name = $this->argument('name');
+        if (! is_string($orgName) || ! is_string($name)) {
+            $this->error('The org and name arguments must be strings.');
+
+            return self::FAILURE;
+        }
+        $org = Organization::firstOrCreate(['slug' => Str::slug($orgName)], ['name' => $orgName]);
+        $project = Project::firstOrNew(['organization_id' => $org->id, 'slug' => Str::slug($name)]);
+        $project->fill(['name' => $name, 'default_branch' => $this->option('branch'), 'github_repository' => $this->option('repo')]);
         $project->token_prefix ??= '';
         $project->token_hash ??= '';
         $token = $project->rotateToken();
         if ($this->option('json')) {
-            $this->line(json_encode(['organization' => $org->slug, 'project' => $project->slug, 'token' => $token]));
+            $this->line(json_encode(['organization' => $org->slug, 'project' => $project->slug, 'token' => $token], JSON_THROW_ON_ERROR));
         } else {
             $this->info("Project {$org->slug}/{$project->slug} token: {$token}");
         }

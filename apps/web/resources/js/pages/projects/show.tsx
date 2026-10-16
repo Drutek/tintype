@@ -1,10 +1,10 @@
 import { Head, Link, router } from '@inertiajs/react';
-import { useEcho } from '@laravel/echo-react';
 import { GitPullRequest } from 'lucide-react';
 import { useEffect } from 'react';
 import { ProjectNav, projectBreadcrumbs } from '@/components/tintype/project-nav';
 import { BuildStatusBadge, shortSha, timeAgo } from '@/components/tintype/status-badge';
 import { Button } from '@/components/ui/button';
+import { useLive } from '@/hooks/use-live';
 import { show as showBuild } from '@/routes/builds';
 import { settings as projectSettings, show as showProject } from '@/routes/projects';
 import type { BuildRow, OrgRef, Paginated, ProjectRef, Role } from '@/types';
@@ -20,14 +20,14 @@ interface Props {
 
 export default function ProjectShow({ organization, project, builds, branches, filters }: Props) {
     const p = { organization: organization.slug, project: project.slug };
-    useEcho(`projects.${project.id}`, '.build.updated', () => router.reload({ only: ['builds'] }));
+    const live = useLive(`projects.${project.id}`, '.build.updated', () => router.reload({ only: ['builds'] }));
     const active = builds.data.some((b) => ['uploading', 'queued', 'capturing'].includes(b.status));
     useEffect(() => {
         if (!active) return;
-        const t = setInterval(() => router.reload({ only: ['builds'] }), 4000);
+        const t = setInterval(() => router.reload({ only: ['builds'] }), live ? 20000 : 4000);
 
         return () => clearInterval(t);
-    }, [active]);
+    }, [active, live]);
 
     const filter = (key: 'branch' | 'status', value: string) =>
         router.get(showProject.url(p), { ...filters, [key]: value || undefined }, { preserveState: true, replace: true });

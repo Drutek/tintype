@@ -1,10 +1,10 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
-import { useEcho } from '@laravel/echo-react';
 import { Check, ExternalLink, GitBranch, GitCommit, GitPullRequest, MessageSquare, RotateCcw, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SnapshotViewer, VIEW_MODES, type ViewMode } from '@/components/tintype/snapshot-viewer';
 import { BuildStatusBadge, shortSha, SnapshotStatusBadge, timeAgo } from '@/components/tintype/status-badge';
 import { Button } from '@/components/ui/button';
+import { useLive } from '@/hooks/use-live';
 import { cn } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { show as showBuild, review as reviewBuild } from '@/routes/builds';
@@ -53,13 +53,13 @@ export default function BuildShow({ organization, project, role, build, snapshot
     const params = { organization: organization.slug, project: project.slug, build: build.number };
 
     // Live progress: websocket when Reverb is configured, polling as a fallback.
-    useEcho(`builds.${build.id}`, '.build.updated', () => router.reload({ only: ['build', 'snapshots'] }));
+    const live = useLive(`builds.${build.id}`, '.build.updated', () => router.reload({ only: ['build', 'snapshots'] }));
     useEffect(() => {
         if (!IN_PROGRESS.includes(build.status)) return;
-        const t = setInterval(() => router.reload({ only: ['build', 'snapshots'] }), 3000);
+        const t = setInterval(() => router.reload({ only: ['build', 'snapshots'] }), live ? 15000 : 3000);
 
         return () => clearInterval(t);
-    }, [build.status]);
+    }, [build.status, live]);
 
     const decide = useCallback(
         (decision: 'accepted' | 'denied' | 'pending', ids: number[] | 'all') => {

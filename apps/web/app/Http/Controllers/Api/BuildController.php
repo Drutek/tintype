@@ -7,7 +7,9 @@ use App\Enums\SnapshotStatus;
 use App\Http\Controllers\Controller;
 use App\Jobs\ProcessStorybookUpload;
 use App\Models\Build;
+use App\Models\Commit;
 use App\Models\Project;
+use App\Services\BaselineResolver;
 use App\Services\BuildService;
 use App\Services\ImageStore;
 use Illuminate\Filesystem\AwsS3V3Adapter;
@@ -80,11 +82,11 @@ class BuildController extends Controller
         ]);
         $project = $this->project($request);
         foreach ($data['commits'] ?? [] as $c) {
-            \App\Models\Commit::updateOrCreate(['project_id' => $project->id, 'sha' => $c['sha']], ['parents' => array_values($c['parents'] ?? [])]);
+            Commit::updateOrCreate(['project_id' => $project->id, 'sha' => $c['sha']], ['parents' => array_values($c['parents'] ?? [])]);
         }
         $probe = new Build(['project_id' => $project->id, 'commit_sha' => $data['commit'], 'branch' => $data['branch']]);
         $probe->setRelation('project', $project);
-        $result = app(\App\Services\BaselineResolver::class)->ancestorBuilds($probe);
+        $result = app(BaselineResolver::class)->ancestorBuilds($probe);
 
         return response()->json([
             'strategy' => $result['strategy'],

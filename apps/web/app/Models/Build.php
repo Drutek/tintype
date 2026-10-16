@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\BuildStatus;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -31,8 +30,6 @@ use Illuminate\Support\Carbon;
  */
 class Build extends Model
 {
-    use HasFactory;
-
     protected $guarded = [];
 
     protected function casts(): array
@@ -86,6 +83,22 @@ class Build extends Model
     public function storybookToken(): string
     {
         return substr(hash_hmac('sha256', 'storybook:'.$this->id, (string) config('app.key')), 0, 32);
+    }
+
+    /** Storybook URL as seen by capture workers (may be a private address). */
+    public function internalStorybookUrl(): string
+    {
+        return self::internalUrl("/storybooks/{$this->id}/{$this->storybookToken()}/");
+    }
+
+    public static function internalUrl(string $path): string
+    {
+        $base = config('tintype.internal_url');
+        if (! is_string($base) || $base === '') {
+            return rtrim(url('/'), '/').$path;
+        }
+
+        return rtrim($base, '/').$path;
     }
 
     public function storybookUrl(): string

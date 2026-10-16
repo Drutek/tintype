@@ -75,21 +75,21 @@ class BuildFinalizer
             if (! $baseline) {
                 continue; // never approved: nothing to inherit or mark removed
             }
-            $inherit = $inIndex && ! $wasCaptured && $baseline;
+            $inherit = $inIndex && ! $wasCaptured;
             Snapshot::create([
                 'build_id' => $build->id,
                 'story_id' => $storyId,
                 'browser' => $browser,
                 'mode_key' => $modeKey,
                 'mode_name' => $baseline->mode_name ?? 'default',
-                'viewport_width' => $baseline?->viewport_width,
-                'viewport_height' => $baseline?->viewport_height,
+                'viewport_width' => $baseline->viewport_width,
+                'viewport_height' => $baseline->viewport_height,
                 'status' => $inherit ? SnapshotStatus::Unchanged : SnapshotStatus::Removed,
                 'image_sha' => $inherit ? $baseline->image_sha : null,
                 'width' => $inherit ? $baseline->width : null,
                 'height' => $inherit ? $baseline->height : null,
-                'baseline_snapshot_id' => $baseline?->id,
-                'ignore_regions' => $baseline?->ignore_regions,
+                'baseline_snapshot_id' => $baseline->id,
+                'ignore_regions' => $baseline->ignore_regions,
                 'params' => $inherit ? array_merge($baseline->params ?? [], ['inherited' => true]) : null,
             ]);
         }

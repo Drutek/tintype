@@ -1,6 +1,10 @@
 <?php
 
 return [
+    // Base URL capture workers use to reach this server (hosted Storybooks, baseline images).
+    // Defaults to APP_URL; set it when workers sit on a private network (e.g. http://web:8080).
+    'internal_url' => env('TINTYPE_INTERNAL_URL'),
+
     // Shared secret for capture workers (Authorization: Bearer <token>).
     'worker_token' => env('TINTYPE_WORKER_TOKEN'),
 
@@ -17,8 +21,19 @@ return [
     // Max commits walked when resolving ancestor builds.
     'max_ancestor_commits' => (int) env('TINTYPE_MAX_ANCESTOR_COMMITS', 1000),
 
+    // When set, `tintype:metrics` publishes queue depth here every minute (AWS autoscaling).
+    'cloudwatch_namespace' => env('TINTYPE_CLOUDWATCH_NAMESPACE'),
+
     // Allow self sign-up after the first admin exists.
     'open_registration' => (bool) env('TINTYPE_OPEN_REGISTRATION', false),
+
+    // Browser-facing Reverb endpoint (null key = realtime off; pages fall back to polling).
+    'realtime' => [
+        'key' => env('BROADCAST_CONNECTION') === 'reverb' ? env('REVERB_APP_KEY') : null,
+        'host' => env('TINTYPE_REVERB_PUBLIC_HOST', parse_url((string) env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+        'port' => (int) env('TINTYPE_REVERB_PUBLIC_PORT', env('REVERB_PORT', 8080)),
+        'scheme' => env('TINTYPE_REVERB_PUBLIC_SCHEME', env('REVERB_SCHEME', 'http')),
+    ],
 
     'github' => [
         'api_url' => env('GITHUB_API_URL', 'https://api.github.com'),

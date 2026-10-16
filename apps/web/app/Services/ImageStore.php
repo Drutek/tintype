@@ -36,6 +36,9 @@ class ImageStore
             return $existing;
         }
         $dims = unpack('Nwidth/Nheight', substr($bytes, 16, 8));
+        if ($dims === false) {
+            throw new InvalidArgumentException('Not a PNG');
+        }
         $this->disk()->put(Image::pathFor($sha), $bytes);
 
         return Image::firstOrCreate(['sha256' => $sha], [

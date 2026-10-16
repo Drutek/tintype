@@ -34,7 +34,7 @@ Decisions so far (2026-10-16):
 ├── apps/web/                 Laravel 13 app (API, Inertia UI, GitHub App, jobs)
 ├── packages/cli/             `npx <name>`: build/upload/poll CLI (TypeScript)
 ├── packages/capture/         Capture worker (TypeScript, Playwright) + Dockerfiles
-│   └── docker/chromium|firefox|webkit/Dockerfile
+│   └── docker/Dockerfile (BROWSER=chromium|firefox|webkit)
 ├── packages/diff/            Diff library shared by the worker (odiff wrapper, regions, masks)
 ├── packages/storybook-addon/ (Phase 3) Visual Tests panel addon
 ├── packages/shared/          Shared TS types for the API contract (generated from OpenAPI)
@@ -122,7 +122,7 @@ The algorithm gets extensive Pest tests with synthetic commit graphs: linear, br
 
 ## 5. Capture determinism
 
-The capture image (`packages/capture/docker/chromium/Dockerfile`) is based on `mcr.microsoft.com/playwright:v1.64.1-noble` pinned **by digest**.
+The capture image (`packages/capture/docker/Dockerfile`, build-arg `BROWSER`) is based on `mcr.microsoft.com/playwright:v1.64.1-noble` pinned **by digest**.
 
 **Image**
 - Bundled fonts: Noto, Noto Color Emoji, Liberation, DejaVu, Inter, Roboto. Use `fontconfig` with antialiasing and hinting set explicitly, and no other system fonts.

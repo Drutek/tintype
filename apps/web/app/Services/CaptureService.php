@@ -19,7 +19,6 @@ class CaptureService
     public function __construct(
         private readonly BaselineResolver $baselines,
         private readonly BuildFinalizer $finalizer,
-        private readonly ImageStore $images,
     ) {}
 
     /** @param array<string, mixed> $info */
@@ -100,7 +99,7 @@ class CaptureService
         $settings = $build->project->resolvedSettings();
 
         $stories = Story::where('project_id', $build->project_id)->whereIn('story_id', $job->story_ids)->get();
-        $resolved = $this->baselines->resolve($build, $stories->pluck('id')->all());
+        $resolved = $this->baselines->resolve($build, array_values($stories->map(fn (Story $s): int => $s->id)->all()));
         $byStory = [];
         foreach ($stories as $story) {
             $modes = [];
@@ -112,7 +111,7 @@ class CaptureService
                 $modes[$mode] = [
                     'snapshotId' => $snap->id,
                     'sha' => $snap->image_sha,
-                    'url' => route('internal.images.show', $snap->image_sha),
+                    'url' => Build::internalUrl('/api/internal/v1/images/'.$snap->image_sha),
                     'ignoreRegions' => $snap->ignore_regions ?? [],
                 ];
             }
@@ -125,7 +124,7 @@ class CaptureService
                 'buildId' => $build->id,
                 'attempt' => $job->attempts,
                 'browser' => $job->browser,
-                'storybookUrl' => $build->storybookUrl(),
+                'storybookUrl' => $build->internalStorybookUrl(),
                 'stories' => $byStory,
                 'settings' => [
                     'diffThreshold' => (float) $settings['diff_threshold'],
@@ -160,7 +159,7 @@ class CaptureService
         }
         $build = $job->build()->with('project')->firstOrFail();
         $stories = Story::where('project_id', $build->project_id)->whereIn('story_id', $job->story_ids)->get()->keyBy('story_id');
-        $resolved = $this->baselines->resolve($build, $stories->pluck('id')->all());
+        $resolved = $this->baselines->resolve($build, array_values($stories->map(fn (Story $s): int => $s->id)->all()));
 
         DB::transaction(function () use ($job, $build, $stories, $resolved, $results) {
             foreach ($results as $r) {

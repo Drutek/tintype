@@ -1,0 +1,142 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Enums\BuildStatus;
+use App\Enums\ReviewState;
+use App\Enums\SnapshotStatus;
+use App\Models\AppSetting;
+use App\Models\Build;
+use App\Models\GithubInstallation;
+use App\Models\PullRequest;
+use App\Models\User;
+use App\Services\GitHub\CheckRunReporter;
+use App\Services\GitHub\GitHubApp;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Tests\Support\Tintype;
+use Tests\TestCase;
+
+class GitHubIntegrationTest extends TestCase
+{
+    use RefreshDatabase, Tintype;
+
+    private function configureApp(): void
+    {
+        $key = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+        openssl_pkey_export($key, $pem);
+        AppSetting::put('github_app', ['id' => 123, 'slug' => 'tintype-test', 'name' => 'Tintype test', 'pem' => $pem, 'webhook_secret' => 'whsec']);
+    }
+
+    public function test_check_run_created_then_updated_with_conclusion(): void
+    {
+        $this->configureApp();
+        $project = $this->makeProject(['github_repository' => 'acme/web']);
+        Http::fake([
+            'api.github.com/repos/acme/web/installation' => Http::response(['id' => 99]),
+            'api.github.com/app/installations/99/access_tokens' => Http::response(['token' => 'inst-token']),
+            'api.github.com/repos/acme/web/check-runs' => Http::response(['id' => 555], 201),
+            'api.github.com/repos/acme/web/check-runs/555' => Http::response(['id' => 555]),
+        ]);
+        $build = $this->completedBuild($project, 'abc1234', 'main', ['x--y' => ['sha' => str_repeat('a', 64), 'status' => SnapshotStatus::Changed, 'review' => ReviewState::Pending]], BuildStatus::Capturing);
+
+        app(CheckRunReporter::class)->report($build->fresh());
+        $this->assertSame(555, $build->fresh()->github_check_run_id);
+        $this->assertSame(99, $project->fresh()->github_installation_id);
+        Http::assertSent(fn (Request $r) => $r->method() === 'POST' && str_ends_with($r->url(), '/check-runs')
+            && $r['status'] === 'in_progress' && $r['head_sha'] === 'abc1234' && $r->hasHeader('Authorization', 'token inst-token'));
+
+        $build->update(['status' => BuildStatus::Pending, 'changed_count' => 1]);
+        app(CheckRunReporter::class)->report($build->fresh());
+        Http::assertSent(fn (Request $r) => $r->method() === 'PATCH' && $r['conclusion'] === 'action_required' && $r['output']['title'] === '1 change needs review');
+
+        $build->update(['status' => BuildStatus::Accepted]);
+        app(CheckRunReporter::class)->report($build->fresh());
+        Http::assertSent(fn (Request $r) => $r->method() === 'PATCH' && $r['conclusion'] === 'success');
+    }
+
+    public function test_reporter_is_a_noop_without_app_or_repository(): void
+    {
+        Http::fake();
+        $project = $this->makeProject();
+        $build = $this->completedBuild($project, 'abc1234', 'main');
+        app(CheckRunReporter::class)->report($build);
+        Http::assertNothingSent();
+    }
+
+    public function test_webhook_signature_and_installation_events(): void
+    {
+        $this->configureApp();
+        $body = json_encode(['action' => 'created', 'installation' => ['id' => 42, 'account' => ['login' => 'acme', 'type' => 'Organization']]]);
+        $this->call('POST', '/github/webhook', [], [], [], ['HTTP_X_GITHUB_EVENT' => 'installation', 'HTTP_X_HUB_SIGNATURE_256' => 'sha256=bad', 'CONTENT_TYPE' => 'application/json'], $body)->assertUnauthorized();
+        $sig = 'sha256='.hash_hmac('sha256', $body, 'whsec');
+        $this->call('POST', '/github/webhook', [], [], [], ['HTTP_X_GITHUB_EVENT' => 'installation', 'HTTP_X_HUB_SIGNATURE_256' => $sig, 'CONTENT_TYPE' => 'application/json'], $body)->assertOk();
+        $this->assertSame('acme', GithubInstallation::where('installation_id', 42)->value('account_login'));
+    }
+
+    public function test_pull_request_webhook_tracks_pr_and_links_builds(): void
+    {
+        $this->configureApp();
+        $project = $this->makeProject(['github_repository' => 'acme/web']);
+        $build = $this->completedBuild($project, 'abc1234', 'feature/x');
+        $body = json_encode([
+            'action' => 'closed',
+            'repository' => ['full_name' => 'acme/web'],
+            'pull_request' => ['number' => 7, 'title' => 'Purple buttons', 'state' => 'closed', 'merged' => true, 'merge_commit_sha' => 'def5678',
+                'head' => ['ref' => 'feature/x', 'sha' => 'abc1234'], 'base' => ['ref' => 'main'], 'user' => ['login' => 'dev'], 'html_url' => 'https://github.com/acme/web/pull/7'],
+        ]);
+        $sig = 'sha256='.hash_hmac('sha256', $body, 'whsec');
+        $this->call('POST', '/github/webhook', [], [], [], ['HTTP_X_GITHUB_EVENT' => 'pull_request', 'HTTP_X_HUB_SIGNATURE_256' => $sig, 'CONTENT_TYPE' => 'application/json'], $body)->assertOk();
+        $pr = PullRequest::where('project_id', $project->id)->where('number', 7)->firstOrFail();
+        $this->assertSame(['merged', 'def5678', 'feature/x'], [$pr->state, $pr->merge_commit_sha, $pr->head_branch]);
+        $this->assertSame(7, $build->fresh()->pr_number);
+    }
+
+    public function test_manifest_flow_stores_credentials(): void
+    {
+        Http::fake(['api.github.com/app-manifests/code123/conversions' => Http::response([
+            'id' => 1, 'slug' => 'tintype-x', 'name' => 'Tintype X', 'pem' => 'PEM', 'webhook_secret' => 'sec', 'client_id' => 'cid', 'client_secret' => 'cs', 'owner' => ['login' => 'acme'],
+        ], 201)]);
+        $creds = app(GitHubApp::class)->completeManifest('code123');
+        $this->assertSame('tintype-x', $creds['slug']);
+        $this->assertSame('sec', AppSetting::get('github_app')['webhook_secret']);
+        $this->assertNotSame('PEM', AppSetting::find('github_app')->getRawOriginal('value'), 'stored encrypted');
+        $this->assertStringEndsWith('/apps/tintype-x/installations/new', app(GitHubApp::class)->installUrl());
+        $manifest = app(GitHubApp::class)->manifest();
+        $this->assertSame('write', $manifest['default_permissions']['checks']);
+    }
+
+    public function test_admin_callback_requires_state(): void
+    {
+        $admin = User::factory()->create(['is_admin' => true]);
+        $this->actingAs($admin)->get('/admin')->assertOk();
+        $this->actingAs($admin)->get('/admin/github/callback?code=x&state=wrong')->assertForbidden();
+    }
+
+    public function test_ui_review_check(): void
+    {
+        $this->configureApp();
+        $project = $this->makeProject(['github_repository' => 'acme/web']);
+        $this->commits($project, ['m1' => [], 'f1' => ['m1']]);
+        $this->completedBuild($project, 'm1', 'main', ['a--b' => ['sha' => str_repeat('1', 64)]]);
+        $head = $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('2', 64), 'status' => SnapshotStatus::Changed, 'review' => ReviewState::Accepted]]);
+        $head->update(['pr_number' => 3]);
+        $pr = PullRequest::create(['project_id' => $project->id, 'number' => 3, 'head_branch' => 'feature', 'base_branch' => 'main']);
+        Http::fake([
+            'api.github.com/repos/acme/web/installation' => Http::response(['id' => 9]),
+            'api.github.com/app/installations/9/access_tokens' => Http::response(['token' => 't']),
+            'api.github.com/repos/acme/web/check-runs' => Http::response(['id' => 77], 201),
+        ]);
+        app(CheckRunReporter::class)->reportPullRequest($pr->load('project.organization'));
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/check-runs') && $r['name'] === 'UI Review' && $r['conclusion'] === 'action_required' && $r['head_sha'] === 'f1');
+
+        $user = $this->member($project);
+        $this->actingAs($user)->get(route('pulls.show', [$project->organization, $project, 3]))->assertOk()
+            ->assertInertia(fn ($page) => $page->component('pulls/show')->has('changes', 1)->where('changes.0.kind', 'changed'));
+        $this->actingAs($user)->post(route('pulls.review', [$project->organization, $project, 3]), ['state' => 'approved'])->assertRedirect();
+        $this->assertSame('approved', $pr->fresh()->review_status);
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/check-runs') && ($r['conclusion'] ?? null) === 'success');
+        $this->assertInstanceOf(Build::class, $head);
+    }
+}

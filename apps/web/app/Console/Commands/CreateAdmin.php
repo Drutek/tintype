@@ -16,14 +16,24 @@ class CreateAdmin extends Command
 
     public function handle(): int
     {
-        $password = $this->option('password') ?: Str::password(16, symbols: false);
-        $user = User::firstOrNew(['email' => $this->argument('email')]);
+        $email = $this->argument('email');
+        if (! is_string($email)) {
+            $this->error('The email argument must be a string.');
+
+            return self::FAILURE;
+        }
+        $password = $this->option('password');
+        if (! is_string($password) || ! $password) {
+            $password = Str::password(16, symbols: false);
+        }
+        $user = User::firstOrNew(['email' => $email]);
         $created = ! $user->exists;
         if ($created) {
             $user->fill(['name' => $this->option('name'), 'password' => $password]);
         }
         $user->forceFill(['is_admin' => true, 'email_verified_at' => $user->email_verified_at ?? now()])->save();
-        if ($org = $this->option('org')) {
+        $org = $this->option('org');
+        if (is_string($org) && $org) {
             $organization = Organization::firstOrCreate(['slug' => Str::slug($org)], ['name' => $org]);
             $organization->users()->syncWithoutDetaching([$user->id => ['role' => Role::Owner->value]]);
         }

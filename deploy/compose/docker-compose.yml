@@ -1,0 +1,136 @@
+# Tintype on a single host.
+#   cp .env.example .env && edit APP_URL / secrets
+#   docker compose run --rm web key   # paste into APP_KEY
+#   docker compose up -d
+#   docker compose up -d --scale capture=4   # more capture capacity
+name: tintype
+
+x-app: &app
+  image: ${TINTYPE_WEB_IMAGE:-ghcr.io/kevin-coyle/tintype-web:latest}
+  build:
+    context: ../..
+    dockerfile: apps/web/docker/Dockerfile
+  env_file: .env
+  environment: &app-env
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_DATABASE: tintype
+    DB_USERNAME: tintype
+    DB_PASSWORD: ${POSTGRES_PASSWORD:-tintype}
+    REDIS_HOST: redis
+    REDIS_CLIENT: predis
+    QUEUE_CONNECTION: redis
+    CACHE_STORE: redis
+    SESSION_DRIVER: redis
+    BROADCAST_CONNECTION: reverb
+    REVERB_HOST: reverb
+    REVERB_PORT: 8081
+    REVERB_SCHEME: http
+    TINTYPE_DISK_DRIVER: s3
+    TINTYPE_S3_ENDPOINT: http://minio:9000
+    TINTYPE_S3_PATH_STYLE: "true"
+    TINTYPE_S3_BUCKET: tintype
+    TINTYPE_S3_KEY: ${MINIO_ROOT_USER:-tintype}
+    TINTYPE_S3_SECRET: ${MINIO_ROOT_PASSWORD:-tintype-secret}
+    # Capture workers reach the server (and hosted Storybooks) on the internal network.
+    TINTYPE_INTERNAL_URL: http://web:8080
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_started }
+    minio-setup: { condition: service_completed_successfully }
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *app
+    command: web
+    ports: ["${TINTYPE_HTTP_PORT:-8080}:8080"]
+    networks: [default, capture]
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8080/up') ? 0 : 1);"]
+      interval: 15s
+      retries: 5
+
+  horizon:
+    <<: *app
+    command: horizon
+    depends_on:
+      web: { condition: service_healthy }
+
+  scheduler:
+    <<: *app
+    command: scheduler
+    depends_on:
+      web: { condition: service_healthy }
+
+  reverb:
+    <<: *app
+    command: reverb
+    ports: ["${TINTYPE_REVERB_PORT:-8081}:8081"]
+    depends_on:
+      web: { condition: service_healthy }
+
+  capture:
+    image: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/kevin-coyle/tintype-capture-chromium:latest}
+    build:
+      context: ../..
+      dockerfile: packages/capture/docker/Dockerfile
+    platform: linux/amd64
+    command: worker
+    environment:
+      TINTYPE_SERVER: http://web:8080
+      TINTYPE_WORKER_TOKEN: ${TINTYPE_WORKER_TOKEN:?set TINTYPE_WORKER_TOKEN in .env}
+      TINTYPE_CONCURRENCY: ${TINTYPE_CAPTURE_CONCURRENCY:-4}
+      TINTYPE_CAPTURE_IMAGE_TAG: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/kevin-coyle/tintype-capture-chromium:latest}
+    shm_size: 1gb
+    # Workers only need the web service; keep them off the data network.
+    networks: [capture]
+    depends_on:
+      web: { condition: service_healthy }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tintype
+      POSTGRES_USER: tintype
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-tintype}
+    volumes: ["pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tintype"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes: ["redis:/data"]
+    restart: unless-stopped
+
+  minio:
+    image: quay.io/minio/minio:latest
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tintype}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tintype-secret}
+    volumes: ["minio:/data"]
+    restart: unless-stopped
+
+  minio-setup:
+    image: quay.io/minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      sh -c "until mc alias set local http://minio:9000 $${MINIO_ROOT_USER:-tintype} $${MINIO_ROOT_PASSWORD:-tintype-secret}; do sleep 1; done;
+             mc mb --ignore-existing local/tintype"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-tintype}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-tintype-secret}
+
+networks:
+  default: {}
+  capture: {}
+
+volumes:
+  pg: {}
+  redis: {}
+  minio: {}

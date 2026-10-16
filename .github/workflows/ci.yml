@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: corepack enable && pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  web:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        db: [sqlite, pgsql]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_PASSWORD: tintype, POSTGRES_USER: tintype, POSTGRES_DB: tintype }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U tintype" --health-interval 5s --health-retries 20
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, pdo_pgsql, zip, pcntl, gd, intl
+          coverage: none
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: composer install --no-interaction --prefer-dist
+      - run: npm ci && cp .env.example .env && php artisan key:generate && npm run build
+      - run: vendor/bin/pint --test
+      - run: vendor/bin/phpstan analyse --memory-limit=1G --no-progress
+      - run: npx tsc --noEmit
+      - name: Tests
+        env:
+          DB_CONNECTION: ${{ matrix.db }}
+          DB_HOST: 127.0.0.1
+          DB_DATABASE: ${{ matrix.db == 'pgsql' && 'tintype' || ':memory:' }}
+          DB_USERNAME: tintype
+          DB_PASSWORD: tintype
+        run: php artisan test
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [packages, web]
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, zip, pcntl, gd, intl
+      - uses: actions/setup-node@v4
+        with: { node-version: 24 }
+      - run: corepack enable && pnpm install --frozen-lockfile && pnpm build
+      - run: pnpm --filter @tintype/capture exec playwright install --with-deps chromium
+      - run: pnpm --filter @tintype/sample-storybook build-storybook
+      - working-directory: apps/web
+        run: composer install --no-interaction --prefer-dist && npm ci && cp .env.example .env && php artisan key:generate && npm run build
+      - run: mkdir -p e2e-shots && E2E_SCREENSHOTS=$PWD/e2e-shots scripts/e2e.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: e2e-screenshots, path: e2e-shots }
+
+  images:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    needs: [e2e]
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include:
+          - name: tintype-web
+            dockerfile: apps/web/docker/Dockerfile
+            browser: ''
+          - name: tintype-capture-chromium
+            dockerfile: packages/capture/docker/Dockerfile
+            browser: chromium
+          - name: tintype-capture-firefox
+            dockerfile: packages/capture/docker/Dockerfile
+            browser: firefox
+          - name: tintype-capture-webkit
+            dockerfile: packages/capture/docker/Dockerfile
+            browser: webkit
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/amd64
+          build-args: ${{ matrix.browser && format('BROWSER={0}', matrix.browser) || '' }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:latest
+            ghcr.io/${{ github.repository_owner }}/${{ matrix.name }}:sha-${{ github.sha }}

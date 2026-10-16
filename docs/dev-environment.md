@@ -15,7 +15,7 @@ too: every image is a standard OCI image.
   `--rosetta`, amd64 images fall back to much slower emulation.
 - There is no compose. `scripts/dev-up.sh` starts Postgres, Redis and MinIO as
   individual containers; `scripts/dev-down.sh` stops them.
-- `container build --arch amd64 -f packages/capture/docker/chromium/Dockerfile .`
+- `container build --arch amd64 -f packages/capture/docker/Dockerfile .`
   builds the capture image. `apt-get --snapshot` works inside the build.
 - Volumes: `-v host:container[:ro]`.
 - Containers reach the host through the address shown by `container network ls`

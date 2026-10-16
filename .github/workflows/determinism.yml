@@ -17,7 +17,7 @@ jobs:
         with: { node-version: 24 }
       - run: corepack enable && pnpm install --frozen-lockfile
       - run: pnpm --filter @tintype/sample-storybook build-storybook
-      - run: docker build -t tintype/capture-chromium:ci -f packages/capture/docker/chromium/Dockerfile .
+      - run: docker build -t tintype/capture-chromium:ci -f packages/capture/docker/Dockerfile .
       - name: 20 runs
         run: |
           mkdir -p out && chmod 777 out

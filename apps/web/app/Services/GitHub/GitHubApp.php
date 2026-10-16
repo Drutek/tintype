@@ -78,7 +78,11 @@ class GitHubApp
         return $res->successful() ? (int) $res->json('id') : null;
     }
 
-    /** Exchange a manifest-flow code for app credentials and store them. */
+    /**
+     * Exchange a manifest-flow code for app credentials and store them.
+     *
+     * @return array<string, mixed>
+     */
     public function completeManifest(string $code): array
     {
         $res = Http::withHeaders(['Accept' => 'application/vnd.github+json', 'User-Agent' => 'tintype'])

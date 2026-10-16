@@ -21,7 +21,7 @@ class DashboardController extends Controller
                 'id' => $o->id,
                 'name' => $o->name,
                 'slug' => $o->slug,
-                'role' => $o->roleOf($user)?->value ?? 'admin',
+                'role' => $o->roleOf($user)->value ?? 'admin',
                 'projects' => $o->projects->map(function ($p) {
                     $latest = Build::where('project_id', $p->id)->orderByDesc('number')->first();
 

@@ -84,6 +84,9 @@ class BuildService
         try {
             $in = $disk->readStream($archive);
             $out = fopen($tmpZip, 'wb');
+            if ($out === false) {
+                throw new RuntimeException('Unable to write temporary upload file');
+            }
             stream_copy_to_stream($in, $out);
             fclose($out);
             is_resource($in) && fclose($in);
