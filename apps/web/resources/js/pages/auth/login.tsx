@@ -15,9 +15,11 @@ import PasskeyVerify from '@/components/passkey-verify';
 type Props = {
     status?: string;
     canResetPassword: boolean;
+    canRegister: boolean;
+    sso: { github: boolean; oidc: string | null };
 };
 
-export default function Login({ status, canResetPassword }: Props) {
+export default function Login({ status, canResetPassword, canRegister, sso }: Props) {
     return (
         <>
             <Head title="Log in" />
@@ -92,12 +94,30 @@ export default function Login({ status, canResetPassword }: Props) {
                             </Button>
                         </div>
 
-                        <div className="text-center text-sm text-muted-foreground">
-                            Don't have an account?{' '}
-                            <TextLink href={register()} tabIndex={5}>
-                                Sign up
-                            </TextLink>
-                        </div>
+                        {(sso.github || sso.oidc) && (
+                            <div className="grid gap-2">
+                                <div className="text-center text-xs text-muted-foreground">or</div>
+                                {sso.github && (
+                                    <Button asChild variant="outline">
+                                        <a href="/auth/github">Sign in with GitHub</a>
+                                    </Button>
+                                )}
+                                {sso.oidc && (
+                                    <Button asChild variant="outline">
+                                        <a href="/auth/oidc">Sign in with {sso.oidc}</a>
+                                    </Button>
+                                )}
+                            </div>
+                        )}
+
+                        {canRegister && (
+                            <div className="text-center text-sm text-muted-foreground">
+                                Don't have an account?{' '}
+                                <TextLink href={register()} tabIndex={5}>
+                                    Sign up
+                                </TextLink>
+                            </div>
+                        )}
                     </>
                 )}
             </Form>

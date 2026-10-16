@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\BuildStatus;
+use App\Models\AuditLog;
 use App\Models\Build;
 use App\Models\Organization;
 use App\Models\Project;
@@ -43,6 +44,7 @@ class ProjectController extends Controller
             'token_hash' => '',
         ]);
         $token = $project->rotateToken();
+        AuditLog::record('project.created', $organization, $project, ['name' => $project->name]);
 
         return redirect()->route('projects.settings', [$organization, $project])->with('newToken', $token);
     }
@@ -171,7 +173,9 @@ class ProjectController extends Controller
         if ($project->isDirty('github_repository')) {
             $project->github_installation_id = null;
         }
+        $changed = array_keys($project->getDirty());
         $project->save();
+        AuditLog::record('project.updated', $organization, $project, ['fields' => $changed]);
 
         return back();
     }
@@ -181,7 +185,10 @@ class ProjectController extends Controller
         $this->scoped($organization, $project);
         $this->requireManager($request, $organization);
 
-        return back()->with('newToken', $project->rotateToken());
+        $token = $project->rotateToken();
+        AuditLog::record('project.token_rotated', $organization, $project);
+
+        return back()->with('newToken', $token);
     }
 
     /** Accept the next default-branch build wholesale (after a capture-environment change). */
@@ -190,6 +197,7 @@ class ProjectController extends Controller
         $this->scoped($organization, $project);
         $this->requireManager($request, $organization);
         $project->forceFill(['settings' => array_merge($project->settings ?? [], ['rebaseline_pending' => true])])->save();
+        AuditLog::record('project.rebaseline_requested', $organization, $project);
 
         return back();
     }
@@ -198,6 +206,7 @@ class ProjectController extends Controller
     {
         $this->scoped($organization, $project);
         $this->requireManager($request, $organization);
+        AuditLog::record('project.deleted', $organization, null, ['project' => $project->slug]);
         $project->delete();
 
         return redirect()->route('organizations.show', $organization);

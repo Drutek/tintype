@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppSetting;
+use App\Models\AuditLog;
 use App\Models\CaptureJob;
 use App\Models\GithubInstallation;
 use App\Models\Worker;
@@ -56,6 +57,7 @@ class AdminController extends Controller
                 'failed24h' => CaptureJob::where('status', 'failed')->where('updated_at', '>', now()->subDay())->count(),
             ],
             'workerTokenConfigured' => (string) config('tintype.worker_token') !== '',
+            'audit' => AuditLog::with(['user:id,name', 'organization:id,slug'])->latest('id')->limit(100)->get()->map(fn (AuditLog $a) => self::auditRow($a)),
         ]);
     }
 
@@ -65,7 +67,8 @@ class AdminController extends Controller
         $expected = (string) $request->session()->pull('github_manifest_state');
         abort_unless($expected !== '' && hash_equals($expected, (string) $request->query('state')), 403, 'Invalid state');
         try {
-            $github->completeManifest((string) $request->query('code'));
+            $creds = $github->completeManifest((string) $request->query('code'));
+            AuditLog::record('github.connected', null, null, ['app' => $creds['slug']]);
         } catch (Throwable $e) {
             return redirect()->route('admin.index')->withErrors(['github' => 'Could not create the GitHub App: '.$e->getMessage()]);
         }
@@ -77,7 +80,23 @@ class AdminController extends Controller
     {
         $this->admin($request);
         AppSetting::whereKey('github_app')->delete();
+        AuditLog::record('github.disconnected');
 
         return back();
+    }
+
+    /** @return array<string, mixed> */
+    public static function auditRow(AuditLog $a): array
+    {
+        return [
+            'id' => $a->id,
+            'action' => $a->action,
+            'user' => $a->user?->name,
+            'organization' => $a->organization?->slug,
+            'subject' => $a->subject_type ? "{$a->subject_type} #{$a->subject_id}" : null,
+            'data' => $a->data,
+            'ip' => $a->ip,
+            'at' => $a->created_at->toIso8601String(),
+        ];
     }
 }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ReviewState;
 use App\Enums\SnapshotStatus;
+use App\Models\AuditLog;
 use App\Models\Build;
 use App\Models\Comment;
 use App\Models\Image;
@@ -101,7 +102,10 @@ class BuildController extends Controller
             $query->where('review_state', ReviewState::Pending->value);
         }
         try {
-            $reviews->decide($build, $query->get(), $data['decision'], $request->user());
+            $count = $reviews->decide($build, $query->get(), $data['decision'], $request->user());
+            if ($count && $scope !== 'selection') {
+                AuditLog::record("build.bulk_{$data['decision']}", $organization, $build, ['count' => $count, 'scope' => $scope]);
+            }
         } catch (InvalidArgumentException $e) {
             return back()->withErrors(['review' => $e->getMessage()]);
         }

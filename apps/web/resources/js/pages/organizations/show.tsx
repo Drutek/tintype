@@ -1,6 +1,7 @@
 import { Form, Head, Link, router } from '@inertiajs/react';
 import { Trash2 } from 'lucide-react';
 import Heading from '@/components/heading';
+import { AuditTable, type AuditRow } from '@/components/tintype/audit-table';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,9 +18,10 @@ interface Props {
     projects: { id: number; name: string; slug: string; github_repository: string | null; default_branch: string }[];
     members: { id: number; name: string; email: string; role: Role }[];
     newPassword: { email: string; password: string } | null;
+    audit: AuditRow[];
 }
 
-export default function OrganizationShow({ organization, role, projects, members, newPassword }: Props) {
+export default function OrganizationShow({ organization, role, projects, members, newPassword, audit }: Props) {
     const canManage = role === 'owner' || role === 'admin';
 
     return (
@@ -127,6 +129,12 @@ export default function OrganizationShow({ organization, role, projects, members
                         </Form>
                     )}
                 </div>
+                {canManage && audit.length > 0 && (
+                    <div className="space-y-4 lg:col-span-2">
+                        <Heading title="Activity" description="Recent changes in this organization." />
+                        <AuditTable rows={audit} />
+                    </div>
+                )}
             </div>
         </>
     );

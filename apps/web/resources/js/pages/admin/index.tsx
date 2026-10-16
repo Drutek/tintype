@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { dashboard } from '@/routes';
 import { forget as forgetGithub } from '@/routes/admin/github';
 import { useState } from 'react';
+import { AuditTable, type AuditRow } from '@/components/tintype/audit-table';
 
 interface Props {
     github: {
@@ -23,9 +24,10 @@ interface Props {
     workers: { workerId: string; arch: string | null; image: string | null; browsers: string[] | null; browserVersion: string | null; lastSeenAt: string | null; online: boolean }[];
     queue: { queued: number; leased: number; failed24h: number };
     workerTokenConfigured: boolean;
+    audit: AuditRow[];
 }
 
-export default function Admin({ github, workers, queue, workerTokenConfigured }: Props) {
+export default function Admin({ github, workers, queue, workerTokenConfigured, audit }: Props) {
     const [ghOrg, setGhOrg] = useState('');
     const { errors } = usePage<{ errors: Record<string, string> }>().props;
     const action = ghOrg ? github.createOrgUrlTemplate.replace('{org}', encodeURIComponent(ghOrg)) : github.createUrl;
@@ -102,6 +104,10 @@ export default function Admin({ github, workers, queue, workerTokenConfigured }:
                         ))}
                         {!workers.length && <p className="p-3 text-muted-foreground">No workers have connected yet.</p>}
                     </div>
+                </section>
+                <section className="space-y-4 xl:col-span-2">
+                    <Heading title="Audit log" description="Security-relevant changes across the instance." />
+                    <AuditTable rows={audit} showOrganization />
                 </section>
             </div>
         </>

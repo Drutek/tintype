@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\Role;
+use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -42,6 +43,9 @@ class OrganizationController extends Controller
             'members' => $organization->users()->orderBy('name')->cursor()->map(fn ($u) => [
                 'id' => $u->id, 'name' => $u->name, 'email' => $u->email, 'role' => $u->pivot->getAttribute('role'),
             ])->collect(),
+            'audit' => $role->canManage()
+                ? AuditLog::where('organization_id', $organization->id)->with('user:id,name')->latest('id')->limit(50)->get()->map(fn (AuditLog $a) => AdminController::auditRow($a))
+                : [],
             'newToken' => session('newToken'),
             'newPassword' => session('newPassword'),
         ]);
@@ -60,11 +64,12 @@ class OrganizationController extends Controller
         $password = null;
         if (! $user) {
             $password = Str::password(16, symbols: false);
-            $user = User::create(['name' => $data['name'] ?: Str::before($data['email'], '@'), 'email' => $data['email'], 'password' => $password]);
+            $user = User::create(['name' => ($data['name'] ?? null) ?: Str::before($data['email'], '@'), 'email' => $data['email'], 'password' => $password]);
             $user->forceFill(['email_verified_at' => now()])->save();
         }
         $organization->users()->syncWithoutDetaching([$user->id => ['role' => $data['role']]]);
         $organization->users()->updateExistingPivot($user->id, ['role' => $data['role']]);
+        AuditLog::record('member.added', $organization, $user, ['email' => $user->email, 'role' => $data['role'], 'created' => $password !== null]);
 
         return back()->with('newPassword', $password ? ['email' => $user->email, 'password' => $password] : null);
     }
@@ -75,6 +80,7 @@ class OrganizationController extends Controller
         $owners = $organization->users()->wherePivot('role', Role::Owner->value)->count();
         abort_if($owners <= 1 && $organization->roleOf($user) === Role::Owner, 422, 'An organization needs at least one owner');
         $organization->users()->detach($user->id);
+        AuditLog::record('member.removed', $organization, $user, ['email' => $user->email]);
 
         return back();
     }

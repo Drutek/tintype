@@ -35,6 +35,17 @@ return [
         'scheme' => env('TINTYPE_REVERB_PUBLIC_SCHEME', env('REVERB_SCHEME', 'http')),
     ],
 
+    // Generic OpenID Connect sign-in. Users matching an existing account by verified email are linked;
+    // new users are created when open registration is on or auto_join_org is set.
+    'oidc' => [
+        'issuer' => env('TINTYPE_OIDC_ISSUER'),
+        'client_id' => env('TINTYPE_OIDC_CLIENT_ID'),
+        'client_secret' => env('TINTYPE_OIDC_CLIENT_SECRET'),
+        'label' => env('TINTYPE_OIDC_LABEL', 'Single sign-on'),
+        'auto_join_org' => env('TINTYPE_OIDC_AUTO_JOIN_ORG'),
+        'trust_email' => (bool) env('TINTYPE_OIDC_TRUST_EMAIL', false),
+    ],
+
     'github' => [
         'api_url' => env('GITHUB_API_URL', 'https://api.github.com'),
         'web_url' => env('GITHUB_WEB_URL', 'https://github.com'),

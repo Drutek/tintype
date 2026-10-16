@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AdminController;
+use App\Http\Controllers\Auth\GitHubLoginController;
+use App\Http\Controllers\Auth\OidcLoginController;
 use App\Http\Controllers\BuildController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GitHubWebhookController;
@@ -25,6 +27,13 @@ Route::get('/', function () {
 Route::get('storybooks/{build}/{token}/{path?}', [StorybookController::class, 'file'])
     ->where(['build' => '[0-9]+', 'path' => '.*'])
     ->name('storybook.file');
+
+Route::middleware('guest')->group(function () {
+    Route::get('auth/github', [GitHubLoginController::class, 'redirect'])->name('auth.github');
+    Route::get('auth/github/callback', [GitHubLoginController::class, 'callback'])->name('auth.github.callback');
+    Route::get('auth/oidc', [OidcLoginController::class, 'redirect'])->name('auth.oidc');
+    Route::get('auth/oidc/callback', [OidcLoginController::class, 'callback'])->name('auth.oidc.callback');
+});
 
 Route::post('github/webhook', GitHubWebhookController::class)
     ->withoutMiddleware(ValidateCsrfToken::class)
