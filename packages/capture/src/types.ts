@@ -84,6 +84,8 @@ export interface CaptureResult {
   /** `skipped` when disableSnapshot; `error` when render/play failed. */
   status: 'captured' | 'skipped' | 'error';
   error?: string;
+  /** True when the error came from the capture infrastructure, not the story. */
+  infraError?: boolean;
   /** Interaction-test / addon reports emitted with STORY_FINISHED. */
   reports?: unknown[];
   /** axe-core violations (when a11y is enabled and not disabled for the story). */

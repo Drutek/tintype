@@ -39,7 +39,7 @@ capture:
 | 2026-10-16 | `tintype/capture-firefox:dev` (linux/amd64, Rosetta), Firefox 157.0 | 5 | **28/28 identical** (1 render error excluded, 1 masked-only) |
 | 2026-10-16 | `tintype/capture-webkit:dev` (linux/amd64, Rosetta), WebKit 27.2 | 5 | **31/31 identical** (fixture now includes accessibility stories) |
 | 2026-10-16 | Native macOS arm64, Chromium / Firefox / WebKit | 3 each | All identical (dev only, not a supported baseline environment) |
-| CI | GitHub Actions `ubuntu-latest` native x86_64, Docker | 20 | Runs on every capture-image change (`.github/workflows/determinism.yml`) |
+| 2026-10-16 | GitHub Actions `ubuntu-latest`, **native x86_64**, Docker, Chromium 156.0.8078.4 | 20 | **31/31 identical** (run 38966711560); re-runs on every capture change |
 
 ## What makes it deterministic
 
@@ -79,9 +79,11 @@ The full list is in `packages/capture/src/capture.ts` and `page-scripts.ts`.
   anything derived from load timing. Wrap such output in an ignore region
   (`.tintype-ignore`).
 
-- **Rosetta vs native x86:** captures under Rosetta matched each other
-  perfectly, but they are not guaranteed to match native x86_64 pixel for
-  pixel. Workers report their architecture, and the server refuses non-x86
+- **Rosetta vs native x86:** on 2026-10-16, a capture in the amd64 image under
+  Rosetta (Apple `container`) was **byte-identical** to the native x86_64 CI
+  capture for all 30 comparable snapshots. The 2 that differed were the
+  render-error overlay (it prints a URL) and the random text inside an ignore
+  region. This is a single data point, not a guarantee. Workers report their architecture, and the server refuses non-x86
   results unless `TINTYPE_ALLOW_ANY_ARCH=true` (development only).
 - **Upgrades:** a new browser or font package changes pixels. Bump the capture
   image's major version; builds then show "capture environment changed" and an

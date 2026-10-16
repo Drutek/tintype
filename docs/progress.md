@@ -31,10 +31,9 @@ How each milestone was verified, and what is still open.
   container).
 
 ### Open items (need resources outside this machine)
-1. **Push the rewritten history.** Local `main` is a fresh history. The public
-   repo still has earlier commits, and the agent wasn't allowed to force-push:
-   `git push --force -u origin main`. That first push also runs the CI and
-   native-x86_64 determinism workflows and publishes the images to GHCR.
+1. *(Done.)* The repo now lives at github.com/Drutek/tintype. Native x86_64
+   determinism passed in CI: 31/31 identical over 20 runs, byte-identical to
+   the Rosetta captures.
 2. **Live GitHub App.** Create the app from Admin → GitHub App on an install
    reachable from GitHub. Then confirm check runs and UI Review checks on a real
    PR. The API calls are covered by tests with faked HTTP.

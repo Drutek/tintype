@@ -276,7 +276,7 @@ Status as of 2026-10-16. `docs/progress.md` records how each item was verified.
 - [x] Capture Dockerfile pinned by digest, fonts from a dated Ubuntu snapshot, fontconfig and Chromium flags (§5); one Dockerfile with `BROWSER` build-arg
 - [x] `tintype-capture run` (standalone) and `tintype-capture determinism`
 - [x] Determinism CI job (`.github/workflows/determinism.yml`, native x86_64)
-- **Accept:** met locally. Chromium in the amd64 container: 27/27 comparable snapshots identical over 20 runs. Firefox: 28/28 over 5 runs. WebKit: 31/31 over 5 runs. The native x86_64 CI run happens on the first push of this history (it needs the force-push described in `docs/progress.md`).
+- **Accept:** met locally. Chromium in the amd64 container: 27/27 comparable snapshots identical over 20 runs. Firefox: 28/28 over 5 runs. WebKit: 31/31 over 5 runs. Native x86_64 in GitHub Actions: 31/31 identical over 20 runs. Rosetta and native x86 captures are byte-identical for all comparable snapshots.
 
 ### Phase 1: MVP (end-to-end visual testing) ✅
 - [x] Laravel 13 app: Inertia 3 / React 19 / TS / Tailwind, auth (first user becomes admin and org owner), orgs, members and roles, projects, hashed project tokens

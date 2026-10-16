@@ -54,6 +54,9 @@ export const CHROMIUM_ARGS = [
 
 export const DEFAULT_FIXED_TIME = '2024-01-01T00:00:00.000Z';
 
+/** Extra attempts for navigation timeouts / crashes before reporting an error. */
+export const INFRA_RETRIES = 2;
+
 export async function launchBrowser(name: BrowserName = 'chromium'): Promise<Browser> {
   switch (name) {
     case 'firefox':
@@ -279,7 +282,9 @@ export class StoryCapturer {
         durationMs: Date.now() - started,
       };
     } catch (e) {
-      return { ...base, status: 'error', error: (e as Error).message, durationMs: Date.now() - started };
+      // Exceptions here are infrastructure problems (navigation timeouts, browser crashes),
+      // not story errors, which are reported via the Storybook channel above.
+      return { ...base, status: 'error', error: (e as Error).message, infraError: true, durationMs: Date.now() - started };
     } finally {
       await ctx?.close().catch(() => undefined);
     }
@@ -287,7 +292,12 @@ export class StoryCapturer {
 
   /** Probe then capture every mode for a story. */
   async captureStory(storyId: string): Promise<CaptureResult[]> {
-    const probe = await this.probe(storyId).catch((e: Error) => ({ error: e.message, params: {} as SnapshotParams, modes: [] as CaptureMode[], parameters: {} }));
+    const probeOnce = () => this.probe(storyId).catch((e: Error) => ({ error: e.message, failed: true, params: {} as SnapshotParams, modes: [] as CaptureMode[], parameters: {} }));
+    let probe: Awaited<ReturnType<typeof probeOnce>> = await probeOnce();
+    for (let attempt = 1; 'failed' in probe && attempt <= INFRA_RETRIES; attempt++) {
+      await new Promise((res) => setTimeout(res, 1000 * attempt));
+      probe = await probeOnce();
+    }
     if (probe.params.disableSnapshot) {
       return [{
         storyId,
@@ -301,7 +311,12 @@ export class StoryCapturer {
     const results: CaptureResult[] = [];
     for (const mode of modes) {
       const m = probe.params.fixedTime ? { ...mode, globals: { ...mode.globals, __fixedTime: probe.params.fixedTime } } : mode;
-      const r = await this.capture(storyId, m);
+      let r = await this.capture(storyId, m);
+      // Retry infrastructure failures (e.g. a slow server timing out navigation); story errors are final.
+      for (let attempt = 1; r.infraError && attempt <= INFRA_RETRIES; attempt++) {
+        await new Promise((res) => setTimeout(res, 1000 * attempt));
+        r = await this.capture(storyId, m);
+      }
       results.push({ ...r, mode });
     }
     return results;

@@ -2,6 +2,10 @@
 # End-to-end: real Laravel server + real capture worker + real CLI against the
 # fixture Storybook. Usage: scripts/e2e.sh   (env: E2E_WORKER=native|container)
 set -euo pipefail
+# The e2e drives its own throwaway git repo; don't let the CI runner's git/PR
+# environment (which the CLI rightly prefers) override it.
+unset GITHUB_ACTIONS GITHUB_REF GITHUB_REF_NAME GITHUB_HEAD_REF GITHUB_EVENT_PATH GITHUB_REPOSITORY \
+      GITHUB_STEP_SUMMARY CI_COMMIT_REF_NAME BRANCH_NAME TINTYPE_BRANCH 2>/dev/null || true
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 WEB=$ROOT/apps/web
 PORT=${E2E_PORT:-8123}
@@ -20,6 +24,8 @@ cleanup() {
   # php -S worker children outlive the parent; free the port explicitly.
   lsof -ti "tcp:$PORT" -sTCP:LISTEN 2>/dev/null | xargs kill 2>/dev/null || true
   [ -n "${WORKER_PID:-}" ] && kill "$WORKER_PID" 2>/dev/null || true
+  # Killing the `container run` client does not stop the container itself.
+  [ -n "${WORKER_CONTAINER:-}" ] && ${CONTAINER_RUNTIME:-container} stop "$WORKER_CONTAINER" >/dev/null 2>&1 || true
   [ "${E2E_KEEP:-}" = 1 ] || rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -44,7 +50,8 @@ for _ in $(seq 1 50); do curl -sf "http://127.0.0.1:$PORT/up" >/dev/null && brea
 log "Starting capture worker"
 if [ "${E2E_WORKER:-native}" = container ]; then
   RUNTIME=${CONTAINER_RUNTIME:-container}
-  $RUNTIME run --rm --arch amd64 --rosetta -e TINTYPE_SERVER=http://$HOST_IP:$PORT -e TINTYPE_WORKER_TOKEN -e TINTYPE_POLL_MS=500 \
+  WORKER_CONTAINER=tintype-e2e-worker-$PORT
+  $RUNTIME run --rm --name "$WORKER_CONTAINER" --arch amd64 --rosetta -e TINTYPE_SERVER=http://$HOST_IP:$PORT -e TINTYPE_WORKER_TOKEN -e TINTYPE_POLL_MS=500 \
     ${E2E_CAPTURE_IMAGE:-tintype/capture-chromium:dev} worker >"$WORK/worker.log" 2>&1 &
 else
   TINTYPE_SERVER=http://127.0.0.1:$PORT TINTYPE_POLL_MS=300 node "$ROOT/packages/capture/dist/cli.js" worker >"$WORK/worker.log" 2>&1 &
