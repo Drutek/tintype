@@ -45,7 +45,9 @@ class BuildService
             }
             Commit::firstOrCreate(['project_id' => $project->id, 'sha' => $data['commit']], ['parents' => []]);
 
-            $number = (int) Build::where('project_id', $project->id)->lockForUpdate()->max('number') + 1;
+            // Serialise numbering per project by locking the project row (Postgres disallows FOR UPDATE with aggregates).
+            Project::whereKey($project->id)->lockForUpdate()->first();
+            $number = (int) Build::where('project_id', $project->id)->max('number') + 1;
             $options = Arr::only($data['options'] ?? [], ['autoAcceptChanges', 'onlyStoryNames', 'onlyChanged', 'externals', 'changedFiles', 'turboSnap']);
 
             return Build::create([
