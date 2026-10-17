@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\Auth\GitHubLoginController;
+use App\Http\Controllers\Auth\LoginLinkController;
 use App\Http\Controllers\Auth\OidcLoginController;
 use App\Http\Controllers\BuildController;
 use App\Http\Controllers\DashboardController;
@@ -27,6 +28,8 @@ Route::get('/', function () {
 Route::get('storybooks/{build}/{token}/{path?}', [StorybookController::class, 'file'])
     ->where(['build' => '[0-9]+', 'path' => '.*'])
     ->name('storybook.file');
+
+Route::get('login/link/{user}', LoginLinkController::class)->middleware('signed')->name('login.link');
 
 Route::middleware('guest')->group(function () {
     Route::get('auth/github', [GitHubLoginController::class, 'redirect'])->name('auth.github');

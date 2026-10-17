@@ -107,6 +107,7 @@ always excluded from comparison.
 | `APP_KEY` | | Encryption key (`docker compose run --rm web key`) |
 | `TINTYPE_WORKER_TOKEN` | | Shared secret for capture workers |
 | `TINTYPE_INTERNAL_URL` | `APP_URL` | URL workers use to reach the server (e.g. `http://web:8080`) |
+| `TRUSTED_PROXIES` | | `*` or comma-separated CIDRs of the load balancer/tunnel in front of the app |
 | `TINTYPE_DISK_DRIVER` | `local` | `local` or `s3` (`TINTYPE_S3_BUCKET`, `_KEY`, `_SECRET`, `_REGION`, `_ENDPOINT`, `_PATH_STYLE`) |
 | `TINTYPE_SHARD_SIZE` | 25 | Stories per capture job |
 | `TINTYPE_ALLOW_ANY_ARCH` | false | Accept results from non-x86_64 workers (development only) |

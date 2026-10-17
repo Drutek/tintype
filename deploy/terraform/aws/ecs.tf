@@ -71,6 +71,7 @@ locals {
   app_environment = [
     { name = "APP_URL", value = local.app_url },
     { name = "APP_ENV", value = "production" },
+    { name = "TRUSTED_PROXIES", value = var.vpc_cidr },
     { name = "TINTYPE_INTERNAL_URL", value = local.internal_url },
     { name = "DB_CONNECTION", value = "pgsql" },
     { name = "DB_HOST", value = aws_db_instance.this.address },

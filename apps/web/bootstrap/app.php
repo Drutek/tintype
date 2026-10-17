@@ -22,6 +22,13 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->encryptCookies(except: ['appearance', 'sidebar_state']);
 
+        // Behind a load balancer / tunnel (ALB, cloudflared): honour X-Forwarded-* so links,
+        // HTTPS detection and signed URLs use the public host. TRUSTED_PROXIES=* or a CIDR list.
+        $proxies = $_SERVER['TRUSTED_PROXIES'] ?? getenv('TRUSTED_PROXIES'); // config isn't loaded yet here
+        if (is_string($proxies) && $proxies !== '') {
+            $middleware->trustProxies(at: $proxies === '*' ? '*' : array_map('trim', explode(',', $proxies)));
+        }
+
         // Authenticate API tokens before route-model binding so unknown ids don't leak as 404s.
         $middleware->prependToPriorityList(SubstituteBindings::class, AuthenticateProjectToken::class);
         $middleware->prependToPriorityList(SubstituteBindings::class, AuthenticateWorker::class);

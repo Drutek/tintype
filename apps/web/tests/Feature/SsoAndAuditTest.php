@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Http;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\Support\Tintype;
@@ -109,5 +110,17 @@ class SsoAndAuditTest extends TestCase
 
         $viewer = User::where('email', 'new@example.com')->firstOrFail();
         $this->actingAs($viewer)->get(route('organizations.show', $org))->assertInertia(fn (Assert $p) => $p->has('audit', 0));
+    }
+
+    public function test_one_time_login_link(): void
+    {
+        $user = User::factory()->create();
+        Artisan::call('tintype:login-link', ['email' => $user->email]);
+        $url = trim(Artisan::output());
+        $this->get($url)->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs($user);
+        auth()->logout();
+        $this->get($url)->assertForbidden(); // single use
+        $this->get(preg_replace('/signature=[^&]+/', 'signature=x', $url))->assertForbidden();
     }
 }
