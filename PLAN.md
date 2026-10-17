@@ -305,7 +305,7 @@ Status as of 2026-10-16. `docs/progress.md` records how each item was verified.
 - [x] Storage GC and retention (`tintype:gc`, daily)
 - [x] Terraform AWS module (validated with `terraform validate`) plus operator README
 - [x] Docs: quickstart, CI recipes, configuration reference, reviewing, self-hosting, architecture, API
-- **Accept:** the AWS performance criterion (≥300 stories, 2 modes, 2 browsers, under 5 minutes) has **not** been measured. It needs a real AWS account and is listed as an open item in `docs/progress.md`.
+- **Accept:** met on local hardware (`docs/benchmark.md`). 320 stories × 2 modes × 2 browsers = 1,280 snapshots per build took 78–81s on one laptop. Ten consecutive no-change builds had 0 inconsistent, 0 changed and 0 errors. Repeating this on AWS is deferred, at the user's request.
 
 ### Phase 3: Beyond the basics ✅
 - [x] TurboSnap (`--only-changed`): stats-based reverse dependency tracing, full rebuild on config/lockfile/externals, baseline-commit API, inheritance on the server

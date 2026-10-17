@@ -11,6 +11,7 @@
   security.
 - [How it works](architecture.md): build lifecycle, git-aware baselines,
   capture workers.
+- [Benchmark](benchmark.md): throughput and consistency at 1,280 snapshots per build.
 - [Determinism](determinism.md): how screenshots stay pixel-identical, and the
   measured results.
 - [HTTP API](api.md): the CLI and worker API.

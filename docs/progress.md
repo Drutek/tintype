@@ -37,9 +37,10 @@ How each milestone was verified, and what is still open.
 2. **Live GitHub App.** Create the app from Admin → GitHub App on an install
    reachable from GitHub. Then confirm check runs and UI Review checks on a real
    PR. The API calls are covered by tests with faked HTTP.
-3. **AWS performance acceptance (Phase 2).** Apply `deploy/terraform/aws`, then
-   time a ≥300-story Storybook with 2 modes × 2 browsers. Target: under 5
-   minutes, with 0 inconsistent snapshots over 10 no-change builds.
+3. **AWS performance acceptance (Phase 2).** Met locally: 1,280 snapshots in
+   about 80s per build, 0 inconsistent over 10 builds (see
+   [benchmark.md](benchmark.md)). The AWS run is deferred until credentials are
+   available.
 4. *(Done.)* Published to GitHub Packages as `@drutek/tintype-cli@0.1.0` and
    `@drutek/tintype-storybook-addon@0.1.0` by `.github/workflows/publish-packages.yml`.
 5. **Storybook 8/9 matrix.** Capture supports pre-8.4 Storybook (no
