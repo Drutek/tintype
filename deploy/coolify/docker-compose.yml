@@ -1,0 +1,100 @@
+# Tintype on Coolify (docker compose build pack).
+# Assign a domain to the `web` service (port 8080) in Coolify and set these
+# environment variables on the resource: APP_URL, APP_KEY, TINTYPE_WORKER_TOKEN,
+# POSTGRES_PASSWORD. Coolify's proxy terminates TLS, so TRUSTED_PROXIES=* is set.
+# Pages poll for updates (no Reverb), so only one domain is needed.
+# Images are stored on the shared `tintype-data` volume.
+
+x-app: &app
+  image: ${TINTYPE_WEB_IMAGE:-ghcr.io/drutek/tintype-web:latest}
+  environment: &app-env
+    APP_NAME: Tintype
+    APP_ENV: production
+    APP_DEBUG: "false"
+    APP_URL: ${APP_URL:?}
+    APP_KEY: ${APP_KEY:?}
+    TRUSTED_PROXIES: "*"
+    LOG_CHANNEL: stderr
+    DB_CONNECTION: pgsql
+    DB_HOST: postgres
+    DB_DATABASE: tintype
+    DB_USERNAME: tintype
+    DB_PASSWORD: ${POSTGRES_PASSWORD:?}
+    REDIS_HOST: redis
+    REDIS_CLIENT: predis
+    QUEUE_CONNECTION: redis
+    CACHE_STORE: redis
+    SESSION_DRIVER: redis
+    BROADCAST_CONNECTION: log
+    TINTYPE_DISK_DRIVER: local
+    TINTYPE_DISK_ROOT: /data/tintype
+    TINTYPE_WORKER_TOKEN: ${TINTYPE_WORKER_TOKEN:?}
+    TINTYPE_INTERNAL_URL: http://web:8080
+    TINTYPE_OPEN_REGISTRATION: ${TINTYPE_OPEN_REGISTRATION:-false}
+  volumes:
+    - tintype-data:/data/tintype
+  depends_on:
+    postgres: { condition: service_healthy }
+    redis: { condition: service_started }
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *app
+    command: web
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@file_get_contents('http://127.0.0.1:8080/up') ? 0 : 1);"]
+      interval: 15s
+      retries: 5
+      start_period: 60s
+
+  horizon:
+    <<: *app
+    command: horizon
+    depends_on:
+      web: { condition: service_healthy }
+
+  scheduler:
+    <<: *app
+    command: scheduler
+    depends_on:
+      web: { condition: service_healthy }
+
+  capture:
+    image: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/drutek/tintype-capture-chromium:latest}
+    platform: linux/amd64
+    command: worker
+    environment:
+      TINTYPE_SERVER: http://web:8080
+      TINTYPE_WORKER_TOKEN: ${TINTYPE_WORKER_TOKEN:?}
+      TINTYPE_CONCURRENCY: ${TINTYPE_CAPTURE_CONCURRENCY:-4}
+      TINTYPE_CAPTURE_IMAGE_TAG: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/drutek/tintype-capture-chromium:latest}
+    shm_size: 1gb
+    depends_on:
+      web: { condition: service_healthy }
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: tintype
+      POSTGRES_USER: tintype
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tintype"]
+      interval: 5s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis:/data
+    restart: unless-stopped
+
+volumes:
+  tintype-data: {}
+  pg: {}
+  redis: {}
