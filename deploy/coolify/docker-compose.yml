@@ -7,6 +7,7 @@
 
 x-app: &app
   image: ${TINTYPE_WEB_IMAGE:-ghcr.io/drutek/tintype-web:latest}
+  pull_policy: always # otherwise a redeploy reuses the cached :latest
   environment: &app-env
     APP_NAME: Tintype
     APP_ENV: production
@@ -68,6 +69,7 @@ services:
 
   capture:
     image: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/drutek/tintype-capture-chromium:latest}
+    pull_policy: always
     platform: linux/amd64
     command: worker
     environment:
