@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Enums\BuildStatus;
 use App\Enums\ReviewState;
 use App\Enums\SnapshotStatus;
+use App\Jobs\ReportBuildToGitHub;
 use App\Models\AppSetting;
 use App\Models\Build;
 use App\Models\GithubInstallation;
@@ -122,6 +123,25 @@ class GitHubIntegrationTest extends TestCase
         $admin = User::factory()->create(['is_admin' => true]);
         $this->actingAs($admin)->get('/admin')->assertOk();
         $this->actingAs($admin)->get('/admin/github/callback?code=x&state=wrong')->assertForbidden();
+    }
+
+    public function test_finished_pr_build_also_posts_ui_review_check(): void
+    {
+        $this->configureApp();
+        $project = $this->makeProject(['github_repository' => 'acme/web']);
+        $this->commits($project, ['m1' => [], 'f1' => ['m1']]);
+        $this->completedBuild($project, 'm1', 'main', ['a--b' => ['sha' => str_repeat('1', 64)]]);
+        $head = $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('2', 64), 'status' => SnapshotStatus::Changed, 'review' => ReviewState::Pending]], BuildStatus::Pending);
+        $head->update(['pr_number' => 4, 'changed_count' => 1]);
+        Http::fake([
+            'api.github.com/repos/acme/web/installation' => Http::response(['id' => 9]),
+            'api.github.com/app/installations/9/access_tokens' => Http::response(['token' => 't']),
+            'api.github.com/repos/acme/web/check-runs' => Http::response(['id' => 78], 201),
+        ]);
+        (new ReportBuildToGitHub($head->id))->handle(app(CheckRunReporter::class));
+        Http::assertSent(fn (Request $r) => ($r['name'] ?? null) === 'Visual Tests' && $r['conclusion'] === 'action_required');
+        Http::assertSent(fn (Request $r) => ($r['name'] ?? null) === 'UI Review' && $r['conclusion'] === 'action_required' && $r['head_sha'] === 'f1');
+        $this->assertDatabaseHas('pull_requests', ['project_id' => $project->id, 'number' => 4, 'base_branch' => 'main']);
     }
 
     public function test_ui_review_check(): void

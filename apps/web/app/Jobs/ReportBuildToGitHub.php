@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\Build;
+use App\Models\PullRequest;
 use App\Services\GitHub\CheckRunReporter;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -21,8 +22,18 @@ class ReportBuildToGitHub implements ShouldQueue
     public function handle(CheckRunReporter $reporter): void
     {
         $build = Build::with('project.organization')->find($this->buildId);
-        if ($build) {
-            $reporter->report($build);
+        if (! $build) {
+            return;
+        }
+        $reporter->report($build);
+        // A finished PR build also refreshes UI Review, so the PR shows both checks
+        // before anyone has reviewed it.
+        if ($build->pr_number && ! $build->status->isInProgress()) {
+            $pr = PullRequest::firstOrCreate(
+                ['project_id' => $build->project_id, 'number' => $build->pr_number],
+                ['head_branch' => $build->branch, 'base_branch' => $build->project->default_branch],
+            );
+            $reporter->reportPullRequest($pr->setRelation('project', $build->project));
         }
     }
 }
