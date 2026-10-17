@@ -17,7 +17,7 @@ Decisions so far (2026-10-16):
 | Reference deployment | AWS: ECS Fargate (web, horizon, reverb, capture), RDS, ElastiCache, S3, via Terraform |
 | Single-host deployment | `docker compose` (with MinIO) |
 | Git provider at launch | GitHub, via a GitHub App created per install with the App Manifest flow |
-| Storybook support | Storybook 8.x–10.x (`index.json` v5) |
+| Storybook support | Storybook 9.x–10.x (`index.json` v5), checked by `scripts/storybook-matrix.sh` |
 
 > **Local dev environment (Apple Silicon, no Docker):** use Apple's `container` CLI (v1.1.0, installed; start it with `container system start`).
 > - The capture image is built and run with `container build/run --arch amd64 --rosetta`, so local captures use the same linux/amd64 image as production. Rosetta translation may still differ from native x86 in edge cases, so local captures are for development only and are **never** shared baselines. Real baselines come only from native x86_64 workers (CI / AWS).

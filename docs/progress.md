@@ -55,6 +55,9 @@ How each milestone was verified, and what is still open.
    available.
 4. *(Done.)* Published to GitHub Packages as `@drutek/tintype-cli@0.1.0` and
    `@drutek/tintype-storybook-addon@0.1.0` by `.github/workflows/publish-packages.yml`.
-5. **Storybook 8/9 matrix.** Capture supports pre-8.4 Storybook (no
-   `storyFinished` event) through the render-phase fallback. Only Storybook 10
-   is exercised by the fixture so far.
+5. *(Done, 2026-10-17.)* **Storybook versions.** Storybook 9 and 10 are
+   supported. `scripts/storybook-matrix.sh` rebuilds the fixture's stories on
+   Storybook 9.1.21. All 32 snapshots got the same status as on Storybook 10,
+   and 31/31 were identical over 3 runs. The excluded snapshot is the story
+   that deliberately throws on render. Storybook 8 is not supported. The
+   pre-8.4 render-phase fallback stays in capture because it costs little.
