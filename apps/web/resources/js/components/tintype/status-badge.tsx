@@ -13,6 +13,7 @@ const BUILD: Record<BuildStatus, { label: string; className: string }> = {
     broken: { label: 'Errors', className: 'bg-red-500/15 text-red-700 dark:text-red-300' },
     failed: { label: 'Failed', className: 'bg-red-500/15 text-red-700 dark:text-red-300' },
     canceled: { label: 'Canceled', className: 'bg-slate-500/15 text-slate-600 dark:text-slate-400' },
+    superseded: { label: 'Superseded', className: 'bg-slate-500/15 text-slate-600 dark:text-slate-400' },
 };
 
 const SNAPSHOT: Record<SnapshotStatus, { label: string; className: string }> = {

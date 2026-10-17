@@ -43,6 +43,27 @@ class BuildFinalizer
         });
         BuildUpdated::dispatch($build);
         $this->afterStatusChange($build);
+        $this->supersedeOlder($build);
+    }
+
+    /**
+     * Older builds on the same branch still awaiting review are replaced by this one:
+     * its comparison uses the same baselines (pending changes never move them).
+     * Decisions already made on them stay, and keep serving as baselines.
+     */
+    private function supersedeOlder(Build $build): void
+    {
+        if (! $build->status->isComplete()) {
+            return;
+        }
+        $older = Build::where('project_id', $build->project_id)->where('branch', $build->branch)
+            ->where('number', '<', $build->number)->where('status', BuildStatus::Pending->value)->get();
+        foreach ($older as $old) {
+            $old->forceFill(['status' => BuildStatus::Superseded, 'options' => array_merge($old->options ?? [], ['supersededBy' => $build->number])])->save();
+            BuildUpdated::dispatch($old);
+            ReportBuildToGitHub::dispatch($old->id);
+            ReportBuildToScm::dispatch($old->id);
+        }
     }
 
     /**

@@ -8,7 +8,8 @@ export type BuildStatus =
     | 'passed'
     | 'broken'
     | 'failed'
-    | 'canceled';
+    | 'canceled'
+    | 'superseded';
 
 export type SnapshotStatus =
     | 'new'
@@ -81,6 +82,8 @@ export interface BuildDetail extends BuildRow {
     error: string | null;
     baselineStrategy: string | null;
     baselineBuilds: { number: number; branch: string; commit: string }[];
+    baselineVia: number[];
+    supersededBy: number | null;
     captureImage: string | null;
     ci: Record<string, string> | null;
     autoAccepted: string | null;

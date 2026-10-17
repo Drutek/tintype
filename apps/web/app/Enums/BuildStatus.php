@@ -14,11 +14,13 @@ enum BuildStatus: string
     case Broken = 'broken';
     case Failed = 'failed';
     case Canceled = 'canceled';
+    /** A newer build on the same branch finished before this one was reviewed. */
+    case Superseded = 'superseded';
 
     /** Capture is finished and snapshots exist (may still be under review). */
     public function isComplete(): bool
     {
-        return in_array($this, [self::Pending, self::Accepted, self::Denied, self::Passed, self::Broken], true);
+        return in_array($this, [self::Pending, self::Accepted, self::Denied, self::Passed, self::Broken, self::Superseded], true);
     }
 
     public function isInProgress(): bool
@@ -31,7 +33,7 @@ enum BuildStatus: string
     {
         return match ($this) {
             self::Passed, self::Accepted => 0,
-            self::Pending, self::Denied => 1,
+            self::Pending, self::Denied, self::Superseded => 1,
             self::Broken, self::Failed, self::Canceled => 2,
             default => 0,
         };

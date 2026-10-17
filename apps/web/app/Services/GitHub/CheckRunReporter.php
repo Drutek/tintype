@@ -60,6 +60,7 @@ class CheckRunReporter
             BuildStatus::Denied => ['failure', 'Changes denied'],
             BuildStatus::Broken => ['failure', "{$build->error_count} ".($build->error_count === 1 ? 'story' : 'stories').' errored'],
             BuildStatus::Canceled => ['cancelled', 'Build canceled'],
+            BuildStatus::Superseded => ['neutral', 'Superseded by build '.($build->options['supersededBy'] ?? 'a newer build')],
             default => ['failure', 'Build failed'],
         };
         $summary = sprintf(

@@ -15,6 +15,7 @@ use App\Models\Snapshot;
 use App\Services\ReviewService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -51,7 +52,7 @@ class BuildController extends Controller
             ->values()
             ->map(fn (Snapshot $s) => self::snapshotProps($s));
 
-        $baselineBuilds = Build::whereIn('id', $build->baseline_build_ids ?? [])->get(['id', 'number', 'branch', 'commit_sha']);
+        [$baselineBuilds, $baselineVia] = self::baselineSources($build);
 
         return Inertia::render('builds/show', [
             'organization' => $organization->only('id', 'name', 'slug'),
@@ -62,6 +63,9 @@ class BuildController extends Controller
                 'error' => $build->error,
                 'baselineStrategy' => $build->baseline_strategy,
                 'baselineBuilds' => $baselineBuilds->map(fn ($b) => ['number' => $b->number, 'branch' => $b->branch, 'commit' => $b->commit_sha]),
+                // Rebuilds of the same commit the baselines were looked up through.
+                'baselineVia' => $baselineVia,
+                'supersededBy' => $build->options['supersededBy'] ?? null,
                 'captureImage' => $build->capture_image,
                 'ci' => $build->ci,
                 'autoAccepted' => $build->options['autoAccepted'] ?? null,
@@ -141,6 +145,29 @@ class BuildController extends Controller
         $comment->update(['resolved_at' => $comment->resolved_at ? null : now()]);
 
         return back();
+    }
+
+    /**
+     * The builds a build's baselines come from. A rebuild looks them up through the
+     * earlier build of the same commit, so follow those to the builds that build used.
+     *
+     * @return array{0: Collection<int, Build>, 1: list<int>}
+     */
+    private static function baselineSources(Build $build): array
+    {
+        $via = [];
+        $sources = Build::whereIn('id', $build->baseline_build_ids ?? [])->get(['id', 'number', 'branch', 'commit_sha', 'baseline_strategy', 'baseline_build_ids']);
+        for ($hops = 0; $build->baseline_strategy === 'rebuild' && $sources->count() === 1 && $hops < 10; $hops++) {
+            $build = $sources->first();
+            $next = Build::whereIn('id', $build->baseline_build_ids ?? [])->get(['id', 'number', 'branch', 'commit_sha', 'baseline_strategy', 'baseline_build_ids']);
+            if ($next->isEmpty()) {
+                break;
+            }
+            $via[] = $build->number;
+            $sources = $next;
+        }
+
+        return [$sources, $via];
     }
 
     /** @return array<string, mixed> */

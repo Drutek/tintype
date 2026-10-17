@@ -154,6 +154,47 @@ class BuildPipelineTest extends TestCase
         $this->assertSame('passed', $this->buildStatus($b4)['status']);
     }
 
+    public function test_newer_build_supersedes_unreviewed_one_on_the_same_branch(): void
+    {
+        $project = $this->makeProject();
+        $red = $this->png(10, 10, [255, 0, 0]);
+        $green = $this->png(10, 10, [0, 255, 0]);
+        $b1 = $this->startBuild('aaaaaaa1', [], 'main', ['button--primary']);
+        $this->captureAll(['button--primary' => $red]);
+
+        $b2 = $this->startBuild('bbbbbbb2', ['aaaaaaa1'], 'feature', ['button--primary']);
+        $this->captureAll(['button--primary' => $green]);
+        $this->assertSame('pending', $this->buildStatus($b2)['status']);
+
+        // Re-run of the same commit: compares against main's red, and replaces build 2.
+        $b3 = $this->startBuild('bbbbbbb2', ['aaaaaaa1'], 'feature', ['button--primary']);
+        $this->assertSame('rebuild', $b3->fresh()->baseline_strategy);
+        $this->captureAll(['button--primary' => $green]);
+        $s3 = $this->buildStatus($b3);
+        $this->assertSame('pending', $s3['status']);
+        $this->assertSame(1, $s3['counts']['changed']);
+        $this->assertSame(BuildStatus::Superseded, $b2->fresh()->status);
+        $this->assertSame(3, $b2->fresh()->options['supersededBy']);
+
+        // Superseded builds take no decisions.
+        $user = $this->member($project, Role::Reviewer);
+        $old = $b2->snapshots()->where('status', 'changed')->first();
+        $this->actingAs($user)->post(route('builds.review', [$project->organization, $project, $b2->number]), ['decision' => 'accepted', 'snapshotIds' => [$old->id]]);
+        $this->assertSame('pending', $old->fresh()->review_state->value);
+
+        // The baseline label names main's build, reached via the rebuild.
+        $this->get(route('builds.show', [$project->organization, $project, $b3->number]))->assertInertia(fn ($page) => $page
+            ->where('build.baselineBuilds.0.number', $b1->number)
+            ->where('build.baselineVia', [2])
+            ->where('build.supersededBy', null));
+        $this->get(route('builds.show', [$project->organization, $project, $b2->number]))->assertInertia(fn ($page) => $page->where('build.supersededBy', 3));
+
+        // A build on another branch does not supersede.
+        $this->startBuild('ccccccc3', ['aaaaaaa1'], 'other', ['button--primary']);
+        $this->captureAll(['button--primary' => $green]);
+        $this->assertSame(BuildStatus::Pending, $b3->fresh()->status);
+    }
+
     public function test_denied_changes_and_errors(): void
     {
         $project = $this->makeProject();

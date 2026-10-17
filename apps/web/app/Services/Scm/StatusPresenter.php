@@ -21,6 +21,7 @@ class StatusPresenter
             BuildStatus::Accepted => ['state' => 'success', 'description' => 'All changes accepted'],
             BuildStatus::Pending => ['state' => 'pending', 'description' => "{$review} ".($review === 1 ? 'change needs' : 'changes need').' review'],
             BuildStatus::Denied => ['state' => 'failure', 'description' => 'Changes denied'],
+            BuildStatus::Superseded => ['state' => 'pending', 'description' => 'Superseded by build '.($build->options['supersededBy'] ?? 'a newer build')],
             BuildStatus::Broken => ['state' => 'failure', 'description' => "{$build->error_count} stories errored"],
             default => ['state' => 'error', 'description' => 'Build failed'],
         };

@@ -57,6 +57,10 @@ class GitHubIntegrationTest extends TestCase
         $build->update(['status' => BuildStatus::Accepted]);
         app(CheckRunReporter::class)->report($build->fresh());
         Http::assertSent(fn (Request $r) => $r->method() === 'PATCH' && $r['conclusion'] === 'success');
+
+        $build->update(['status' => BuildStatus::Superseded, 'options' => ['supersededBy' => 7]]);
+        app(CheckRunReporter::class)->report($build->fresh());
+        Http::assertSent(fn (Request $r) => $r->method() === 'PATCH' && $r['conclusion'] === 'neutral' && $r['output']['title'] === 'Superseded by build 7');
     }
 
     public function test_reporter_is_a_noop_without_app_or_repository(): void

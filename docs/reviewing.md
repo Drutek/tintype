@@ -9,7 +9,15 @@ Each CLI run creates a **build**. Its status is one of:
 - `denied`;
 - `passed`: no changes;
 - `broken`: a story errored;
-- `failed`: an infrastructure error.
+- `failed`: an infrastructure error;
+- `superseded`: a newer build on the same branch finished while this one was
+  still pending.
+
+A superseded build stays readable and keeps its comments, but takes no more
+decisions; review the newer build instead. It compares against the same
+baselines, since pending changes never move them. Snapshots already accepted in
+the superseded build still count as baselines. On GitHub its Visual Tests check
+becomes neutral.
 
 Inside a build, every story × browser × mode is a **snapshot**:
 
@@ -35,6 +43,9 @@ ancestry. In practice:
 - Without enough history (shallow clones), Tintype falls back to the latest
   build on the same branch, then on the default branch. The build header shows
   which build(s) and which strategy were used.
+- A rebuild of the same commit looks its baselines up through the earlier
+  build. The header names the build the baselines actually come from, followed
+  by "via rebuild of build N".
 
 ## Review UI
 
@@ -60,6 +71,11 @@ Approving a PR does not by itself accept the snapshots in its build, so the
 for a decision, the PR page says so, and the button becomes **Approve & accept
 all**. That approves the PR and accepts those snapshots in one step, which
 clears both checks.
+
+An approval (or change request) covers the UI changes it was made on. If a later
+push changes them, the decision is dismissed, the PR timeline shows **Review
+dismissed**, and UI Review asks for review again. A push that leaves the UI as
+it was keeps the approval.
 
 ## Accessibility
 

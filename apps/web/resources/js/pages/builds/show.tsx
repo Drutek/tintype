@@ -37,6 +37,8 @@ const IN_PROGRESS = ['uploading', 'queued', 'capturing'];
 
 export default function BuildShow({ organization, project, role, build, snapshots, comments, selected }: Props) {
     const canReview = role !== 'viewer';
+    // A superseded build takes no decisions: its newer build carries the review.
+    const canDecide = canReview && build.status !== 'superseded';
     const [filter, setFilter] = useState<'changes' | 'all'>(
         snapshots.some((s) => s.needsReview || s.status === 'error' || s.status === 'inconsistent') ? 'changes' : 'all',
     );
@@ -98,16 +100,16 @@ export default function BuildShow({ organization, project, role, build, snapshot
                     e.preventDefault();
                     return move(-1);
                 case 'a':
-                    if (canReview && current?.review) {
+                    if (canDecide && current?.review) {
                         decide('accepted', [current.id]);
                         move(1);
                     }
                     return;
                 case 'd':
-                    if (canReview && current?.review) decide('denied', [current.id]);
+                    if (canDecide && current?.review) decide('denied', [current.id]);
                     return;
                 case 'u':
-                    if (canReview && current?.review && current.review !== 'pending') decide('pending', [current.id]);
+                    if (canDecide && current?.review && current.review !== 'pending') decide('pending', [current.id]);
                     return;
                 case 's':
                     return setSpotlight((v) => !v);
@@ -118,7 +120,7 @@ export default function BuildShow({ organization, project, role, build, snapshot
         window.addEventListener('keydown', onKey);
 
         return () => window.removeEventListener('keydown', onKey);
-    }, [move, decide, current, canReview]);
+    }, [move, decide, current, canDecide]);
 
     const pendingCount = snapshots.filter((s) => s.review === 'pending').length;
     const reviewable = ['pending', 'accepted', 'denied', 'broken'].includes(build.status);
@@ -182,7 +184,9 @@ export default function BuildShow({ organization, project, role, build, snapshot
                                   </span>
                               ))
                             : 'none'}
-                        {build.baselineStrategy && build.baselineStrategy !== 'ancestors' && ` · via ${build.baselineStrategy}`}
+                        {build.baselineVia.length > 0
+                            ? ` · via rebuild of ${build.baselineVia.map((n) => `build ${n}`).join(', ')}`
+                            : build.baselineStrategy && build.baselineStrategy !== 'ancestors' && ` · via ${build.baselineStrategy}`}
                     </span>
                     {build.autoAccepted && <span>Auto-accepted ({build.autoAccepted})</span>}
                     {build.captureImage && <span>Captured with {build.captureImage}</span>}
@@ -192,6 +196,15 @@ export default function BuildShow({ organization, project, role, build, snapshot
                         </span>
                     )}
                 </div>
+                {build.supersededBy && (
+                    <div className="border-b bg-slate-500/10 px-4 py-2 text-sm text-muted-foreground">
+                        Superseded by{' '}
+                        <Link className="underline" href={showBuild({ organization: organization.slug, project: project.slug, build: build.supersededBy })}>
+                            build {build.supersededBy}
+                        </Link>
+                        , which compares against the same baselines. Review that build instead.
+                    </div>
+                )}
                 {build.error && <div className="border-b bg-red-500/10 px-4 py-2 text-sm text-red-700 dark:text-red-300">{build.error}</div>}
 
                 <div className="flex min-h-0 flex-1 flex-col md:flex-row">
