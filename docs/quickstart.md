@@ -20,12 +20,24 @@ is shown once, and add it to your CI secrets as `TINTYPE_PROJECT_TOKEN`.
 
 ## 3. Run the CLI
 
+The CLI is published to GitHub Packages. Point the `@drutek` scope at it once
+per project:
+
+```bash
+echo "@drutek:registry=https://npm.pkg.github.com" >> .npmrc
+```
+
+GitHub's npm registry requires a token even for public packages. Use any token
+with `read:packages`. In GitHub Actions, the job's `GITHUB_TOKEN` with
+`packages: read` works. Set it as `NODE_AUTH_TOKEN`, or add
+`//npm.pkg.github.com/:_authToken=${NODE_AUTH_TOKEN}` to `.npmrc`.
+
 From your Storybook project:
 
 ```bash
 TINTYPE_SERVER=https://tintype.example.com \
 TINTYPE_PROJECT_TOKEN=tt_xxxxxxxx_… \
-npx @tintype/cli
+npx @drutek/tintype-cli
 ```
 
 The CLI:

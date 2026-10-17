@@ -74,6 +74,12 @@ class Build extends Model
         return "storybooks/{$this->id}";
     }
 
+    /** Unpacked-upload archive kept for capture workers. */
+    public function storybookZipPath(): string
+    {
+        return "storybooks/{$this->id}.zip";
+    }
+
     public function storybookArchivePath(): string
     {
         return "uploads/build-{$this->id}.zip";

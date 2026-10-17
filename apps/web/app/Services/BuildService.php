@@ -115,6 +115,9 @@ class BuildService
                 $disk->put($build->storybookPath().'/'.$file->getRelativePathname(), $file->getContents());
             }
 
+            // Keep the archive: capture workers download it once and serve the Storybook locally.
+            $disk->move($archive, $build->storybookZipPath());
+
             $index = json_decode((string) file_get_contents("$tmpDir/index.json"), true);
             $entries = $index['entries'] ?? $index['stories'] ?? null;
             if (! is_array($entries)) {
@@ -126,7 +129,7 @@ class BuildService
         } finally {
             File::deleteDirectory($tmpDir);
             File::delete($tmpZip);
-            $disk->delete($archive);
+            $disk->delete($archive); // no-op once moved
         }
     }
 

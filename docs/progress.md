@@ -40,8 +40,8 @@ How each milestone was verified, and what is still open.
 3. **AWS performance acceptance (Phase 2).** Apply `deploy/terraform/aws`, then
    time a ≥300-story Storybook with 2 modes × 2 browsers. Target: under 5
    minutes, with 0 inconsistent snapshots over 10 no-change builds.
-4. **npm publish.** `@tintype/cli` and `@tintype/storybook-addon` are ready
-   to publish, but haven't been published yet.
+4. *(Done.)* Published to GitHub Packages as `@drutek/tintype-cli@0.1.0` and
+   `@drutek/tintype-storybook-addon@0.1.0` by `.github/workflows/publish-packages.yml`.
 5. **Storybook 8/9 matrix.** Capture supports pre-8.4 Storybook (no
    `storyFinished` event) through the render-phase fallback. Only Storybook 10
    is exercised by the fixture so far.

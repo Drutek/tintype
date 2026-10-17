@@ -4,14 +4,14 @@ Shows the current story's visual test status inside Storybook, and runs builds
 without leaving it.
 
 ```bash
-npm i -D @tintype/storybook-addon @tintype/cli
+npm i -D @drutek/tintype-storybook-addon @drutek/tintype-cli
 ```
 
 ```ts
 // .storybook/main.ts
 export default {
   addons: [
-    { name: '@tintype/storybook-addon', options: { server: 'https://tintype.example.com' } },
+    { name: '@drutek/tintype-storybook-addon', options: { server: 'https://tintype.example.com' } },
   ],
 };
 ```

@@ -54,10 +54,14 @@ jobs:
         with:
           fetch-depth: 0 # full history for git-aware baselines
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@drutek'
       - run: npm ci
-      - run: npx @tintype/cli --exit-zero-on-changes
+      - run: npx @drutek/tintype-cli --exit-zero-on-changes
         env:
+          NODE_AUTH_TOKEN: \${{ secrets.GITHUB_TOKEN }}
           TINTYPE_SERVER: ${apiUrl}
           TINTYPE_PROJECT_TOKEN: \${{ secrets.TINTYPE_PROJECT_TOKEN }}`;
 }

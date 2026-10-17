@@ -55,7 +55,7 @@ export default function ProjectShow({ organization, project, builds, branches, f
                     <div className="rounded-xl border p-8 text-center">
                         <p className="font-medium">No builds yet</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Run <code className="rounded bg-muted px-1">npx @tintype/cli</code> in CI. Your token and setup snippet are in{' '}
+                            Run <code className="rounded bg-muted px-1">npx @drutek/tintype-cli</code> in CI. Your token and setup snippet are in{' '}
                             <Link className="underline" href={projectSettings.url(p)}>
                                 settings
                             </Link>

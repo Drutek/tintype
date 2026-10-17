@@ -125,6 +125,7 @@ class CaptureService
                 'attempt' => $job->attempts,
                 'browser' => $job->browser,
                 'storybookUrl' => $build->internalStorybookUrl(),
+                'storybookArchiveUrl' => Build::internalUrl("/api/internal/v1/builds/{$build->id}/storybook.zip"),
                 'stories' => $byStory,
                 'settings' => [
                     'diffThreshold' => (float) $settings['diff_threshold'],
@@ -174,9 +175,8 @@ class CaptureService
 
         if ($complete) {
             $job->update(['status' => $error ? 'failed' : 'completed', 'error' => $error, 'lease_expires_at' => null]);
-            if ($error) {
-                $this->markMissingAsErrors($job, $error);
-            }
+            // Any story the worker never reported becomes an error rather than silently vanishing.
+            $this->markMissingAsErrors($job, $error ?? 'The capture worker did not report a result for this story');
             $this->maybeFinalize($build);
         } else {
             $this->heartbeat($job, $workerId);

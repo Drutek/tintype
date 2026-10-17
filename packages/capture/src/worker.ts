@@ -1,7 +1,11 @@
-import { arch, hostname } from 'node:os';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { arch, hostname, tmpdir } from 'node:os';
+import { dirname, join, normalize } from 'node:path';
+import { unzipSync } from 'fflate';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { compare, sha256, type Rect } from '@tintype/diff';
 import { mapLimit, StoryCapturer } from './capture.js';
+import { serveDirectory } from './storybook.js';
 import type { BrowserName, CaptureMode, CaptureResult } from './types.js';
 
 export interface WorkerConfig {
@@ -30,6 +34,8 @@ interface LeasedJob {
   attempt: number;
   browser: BrowserName;
   storybookUrl: string;
+  /** Zip of the static Storybook; served locally so page loads don't hit the server. */
+  storybookArchiveUrl?: string;
   stories: { storyId: string; baselines: Record<string, BaselineRef> }[];
   settings: {
     diffThreshold: number;
@@ -70,6 +76,7 @@ export class CaptureWorker {
   private readonly cfg: Required<Omit<WorkerConfig, 'image'>> & { image: string | null };
   private stopping = false;
   private readonly baselineCache = new Map<string, Buffer>();
+  private readonly storybooks = new Map<number, Promise<{ url: string; close: () => Promise<void>; dir: string }>>();
 
   constructor(cfg: WorkerConfig) {
     const defined = Object.fromEntries(Object.entries(cfg).filter(([, v]) => v !== undefined && !Number.isNaN(v))) as WorkerConfig;
@@ -88,6 +95,51 @@ export class CaptureWorker {
 
   stop(): void {
     this.stopping = true;
+  }
+
+  /** Download + unpack a build's Storybook once and serve it from localhost. */
+  private localStorybook(job: LeasedJob): Promise<{ url: string; close: () => Promise<void>; dir: string }> {
+    let entry = this.storybooks.get(job.buildId);
+    if (!entry) {
+      entry = (async () => {
+        const res = await fetch(job.storybookArchiveUrl!, { headers: { Authorization: `Bearer ${this.cfg.token}`, 'X-Tintype-Arch': arch() } });
+        if (!res.ok) throw new Error(`storybook archive download failed (${res.status})`);
+        const files = unzipSync(new Uint8Array(await res.arrayBuffer()));
+        const dir = mkdtempSync(join(tmpdir(), `tintype-sb-${job.buildId}-`));
+        for (const [name, data] of Object.entries(files)) {
+          if (name.endsWith('/')) continue;
+          const target = normalize(join(dir, name));
+          if (!target.startsWith(dir)) continue; // path traversal guard
+          mkdirSync(dirname(target), { recursive: true });
+          writeFileSync(target, data);
+        }
+        const served = await serveDirectory(dir);
+        return { ...served, dir };
+      })();
+      this.storybooks.set(job.buildId, entry);
+      entry.catch(() => this.storybooks.delete(job.buildId));
+      // Keep the three most recent builds.
+      while (this.storybooks.size > 3) {
+        const [oldest, p] = this.storybooks.entries().next().value!;
+        this.storybooks.delete(oldest);
+        p.then(async (sb) => {
+          await sb.close();
+          rmSync(sb.dir, { recursive: true, force: true });
+        }).catch(() => undefined);
+      }
+    }
+    return entry;
+  }
+
+  async closeStorybooks(): Promise<void> {
+    for (const p of this.storybooks.values()) {
+      const sb = await p.catch(() => null);
+      if (sb) {
+        await sb.close();
+        rmSync(sb.dir, { recursive: true, force: true });
+      }
+    }
+    this.storybooks.clear();
   }
 
   private async api(method: string, path: string, body?: unknown, raw?: Buffer): Promise<Response> {
@@ -147,13 +199,22 @@ export class CaptureWorker {
       const { job } = (await res.json()) as { job: LeasedJob };
       await this.process(job);
     }
+    await this.closeStorybooks();
   }
 
   async process(job: LeasedJob): Promise<void> {
     const started = Date.now();
     this.cfg.log(`job ${job.id} (build ${job.buildId}, ${job.browser}, ${job.stories.length} stories, attempt ${job.attempt})`);
+    let storybookUrl = job.storybookUrl;
+    if (job.storybookArchiveUrl) {
+      try {
+        storybookUrl = (await this.localStorybook(job)).url;
+      } catch (e) {
+        this.cfg.log(`local storybook unavailable, using server: ${(e as Error).message}`);
+      }
+    }
     const capturer = new StoryCapturer({
-      storybookUrl: job.storybookUrl,
+      storybookUrl,
       browser: job.browser,
       allowedHosts: job.settings.allowedHosts,
       fixedTime: job.settings.fixedTime,
@@ -181,10 +242,16 @@ export class CaptureWorker {
 
     try {
       await capturer.start();
+      if (job.stories[0]) await capturer.prefetchParameters(job.stories[0].storyId);
       await mapLimit(job.stories, this.cfg.concurrency, async (story) => {
         if (lost || this.stopping) return;
         const results = await capturer.captureStory(story.storyId);
-        for (const r of results) pending.push(await this.evaluate(capturer, job, r, story.baselines[r.mode.key] ?? null));
+        for (const r of results) {
+          // Await first: `pending.push(await …)` would bind the old array, which a
+          // concurrent flush may already have sent, silently dropping the result.
+          const payload = await this.evaluate(capturer, job, r, story.baselines[r.mode.key] ?? null);
+          pending.push(payload);
+        }
         if (pending.length >= 10) await flush(false);
       });
       if (!lost) await flush(true);

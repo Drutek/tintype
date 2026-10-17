@@ -22,6 +22,7 @@ Route::prefix('internal/v1')->middleware(AuthenticateWorker::class)->group(funct
     Route::post('jobs/lease', [WorkerController::class, 'lease'])->name('internal.jobs.lease');
     Route::post('jobs/{job}/heartbeat', [WorkerController::class, 'heartbeat'])->name('internal.jobs.heartbeat');
     Route::post('jobs/{job}/results', [WorkerController::class, 'results'])->name('internal.jobs.results');
+    Route::get('builds/{build:id}/storybook.zip', [WorkerController::class, 'storybookArchive'])->name('internal.builds.storybook');
     Route::post('images/missing', [WorkerController::class, 'missingImages'])->name('internal.images.missing');
     Route::put('images/{sha}', [WorkerController::class, 'putImage'])->where('sha', '[0-9a-f]{64}')->name('internal.images.put');
     Route::get('images/{sha}', [WorkerController::class, 'showImage'])->where('sha', '[0-9a-f]{64}')->name('internal.images.show');

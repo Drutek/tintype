@@ -96,6 +96,8 @@ type CachedResponse = { status: number; headers: Record<string, string>; body: B
  */
 export class StoryCapturer {
   private browser: Browser | null = null;
+  /** storyId -> parameters, filled by prefetchParameters() to skip per-story probes. */
+  private readonly paramCache = new Map<string, Record<string, unknown>>();
   private readonly cache = new Map<string, Promise<CachedResponse | null>>();
   readonly opts: Required<Omit<CaptureOptions, 'allowedHosts'>> & { allowedHosts: string[] };
 
@@ -196,6 +198,35 @@ export class StoryCapturer {
       .catch(() => undefined);
   }
 
+  /**
+   * Load every story's parameters with one page load (preview.extract()), so
+   * captureStory() can skip its per-story probe render. Best effort.
+   */
+  async prefetchParameters(firstStoryId: string): Promise<number> {
+    const ctx = await this.newContext(this.opts.defaultViewport, this.opts.fixedTime);
+    try {
+      const page = await ctx.newPage();
+      const def: CaptureMode = { key: 'default', name: 'default', viewport: this.opts.defaultViewport, globals: {} };
+      await this.load(page, firstStoryId, def);
+      const all = await page.evaluate(async () => {
+        const preview = (window as unknown as { __STORYBOOK_PREVIEW__?: { extract?: () => Promise<Record<string, { parameters?: unknown }>> } }).__STORYBOOK_PREVIEW__;
+        if (!preview?.extract) return null;
+        const extracted = await preview.extract();
+        const out: Record<string, unknown> = {};
+        for (const [id, entry] of Object.entries(extracted)) {
+          out[id] = JSON.parse(JSON.stringify(entry.parameters ?? {}, (_k, v) => (typeof v === 'function' || typeof v === 'symbol' ? undefined : v)));
+        }
+        return out;
+      });
+      for (const [id, params] of Object.entries(all ?? {})) this.paramCache.set(id, params as Record<string, unknown>);
+      return this.paramCache.size;
+    } catch {
+      return 0;
+    } finally {
+      await ctx.close().catch(() => undefined);
+    }
+  }
+
   /** Read a story's parameters and resolve its modes (one quick render). */
   async probe(storyId: string): Promise<{ parameters: Record<string, unknown>; params: SnapshotParams; modes: CaptureMode[]; error?: string }> {
     const ctx = await this.newContext(this.opts.defaultViewport, this.opts.fixedTime);
@@ -292,7 +323,10 @@ export class StoryCapturer {
 
   /** Probe then capture every mode for a story. */
   async captureStory(storyId: string): Promise<CaptureResult[]> {
-    const probeOnce = () => this.probe(storyId).catch((e: Error) => ({ error: e.message, failed: true, params: {} as SnapshotParams, modes: [] as CaptureMode[], parameters: {} }));
+    const cached = this.paramCache.get(storyId);
+    const probeOnce = async () => cached
+      ? { parameters: cached, params: snapshotParams(cached), modes: resolveModes(cached, this.opts.defaultViewport) }
+      : this.probe(storyId).catch((e: Error) => ({ error: e.message, failed: true, params: {} as SnapshotParams, modes: [] as CaptureMode[], parameters: {} }));
     let probe: Awaited<ReturnType<typeof probeOnce>> = await probeOnce();
     for (let attempt = 1; 'failed' in probe && attempt <= INFRA_RETRIES; attempt++) {
       await new Promise((res) => setTimeout(res, 1000 * attempt));

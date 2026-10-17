@@ -14,10 +14,14 @@ jobs:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
-        with: { node-version: 22 }
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@drutek'
       - run: npm ci
-      - run: npx @tintype/cli --exit-zero-on-changes --auto-accept-changes main
+      - run: npx @drutek/tintype-cli --exit-zero-on-changes --auto-accept-changes main
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # needs `packages: read`
           TINTYPE_SERVER: https://tintype.example.com
           TINTYPE_PROJECT_TOKEN: ${{ secrets.TINTYPE_PROJECT_TOKEN }}
 ```
@@ -37,7 +41,7 @@ visual-tests:
     GIT_DEPTH: 0
   script:
     - npm ci
-    - npx @tintype/cli --exit-zero-on-changes
+    - npx @drutek/tintype-cli --exit-zero-on-changes
 ```
 
 Set `TINTYPE_SERVER` and `TINTYPE_PROJECT_TOKEN` as CI/CD variables. For a
@@ -56,7 +60,7 @@ pipelines:
         clone: { depth: full }
         script:
           - npm ci
-          - npx @tintype/cli --exit-zero-on-changes
+          - npx @drutek/tintype-cli --exit-zero-on-changes
 ```
 
 For build statuses, set **Status reporting** to Bitbucket and add a repository

@@ -1,6 +1,6 @@
 # Configuration reference
 
-## CLI (`npx @tintype/cli`)
+## CLI (`npx @drutek/tintype-cli`)
 
 | Flag | Env | Description |
 |---|---|---|

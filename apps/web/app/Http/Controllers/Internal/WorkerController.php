@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Build;
 use App\Models\CaptureJob;
 use App\Models\Image;
 use App\Services\CaptureService;
@@ -11,6 +12,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use InvalidArgumentException;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WorkerController extends Controller
 {
@@ -59,6 +61,15 @@ class WorkerController extends Controller
         $this->capture->recordResults($job, $data['workerId'], $request->input('results', []), (bool) ($data['complete'] ?? false), $data['error'] ?? null);
 
         return response()->json(['ok' => true]);
+    }
+
+    /** The build's Storybook as a zip, so workers can serve it locally (one download per build). */
+    public function storybookArchive(Build $build): StreamedResponse
+    {
+        $disk = $this->store->disk();
+        abort_unless($disk->exists($build->storybookZipPath()), 404);
+
+        return $disk->download($build->storybookZipPath(), "storybook-{$build->id}.zip", ['Content-Type' => 'application/zip']);
     }
 
     /** POST {shas: []} -> {missing: []} */

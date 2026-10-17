@@ -32,6 +32,7 @@ export async function captureAll(opts: RunOptions): Promise<{ results: CaptureRe
   try {
     await capturer.start();
     const stories = (await loadStoryIndex(sb.url)).filter((s) => matchesStory(s, opts.only));
+    if (stories[0]) await capturer.prefetchParameters(stories[0].id);
     log(`Capturing ${stories.length} stories with ${opts.browser ?? 'chromium'} ${capturer.browserVersion}`);
     const nested = await mapLimit(stories, opts.concurrency ?? 4, async (s) => {
       const rs = await capturer.captureStory(s.id);

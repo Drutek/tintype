@@ -35,6 +35,7 @@ class CollectGarbage extends Command
                 $deletedBuilds++;
                 if (! $dry) {
                     $store->disk()->deleteDirectory($build->storybookPath());
+                    $store->disk()->delete($build->storybookZipPath());
                     $build->delete();
                 }
             }

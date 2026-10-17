@@ -225,6 +225,9 @@ class BuildPipelineTest extends TestCase
         // Storybook files are served at the tokenised URL.
         $this->get(parse_url($job['storybookUrl'], PHP_URL_PATH).'iframe.html')->assertOk()->assertHeader('Content-Type', 'text/html; charset=utf-8');
         $this->get("/storybooks/{$b->id}/wrongtoken/iframe.html")->assertNotFound();
+        $this->assertStringEndsWith("/api/internal/v1/builds/{$b->id}/storybook.zip", $job['storybookArchiveUrl']);
+        $this->get(parse_url($job['storybookArchiveUrl'], PHP_URL_PATH), $this->worker())->assertOk()->assertHeader('Content-Type', 'application/zip');
+        $this->get(parse_url($job['storybookArchiveUrl'], PHP_URL_PATH))->assertUnauthorized();
 
         // Lease expires -> another worker gets it; the first worker's results are rejected.
         CaptureJob::whereKey($job['id'])->update(['lease_expires_at' => now()->subMinute()]);
@@ -273,5 +276,23 @@ class BuildPipelineTest extends TestCase
         // TurboSnap: only the affected story file is captured; the other is inherited.
         $b2 = $this->startBuild('bbbbbbb2', ['aaaaaaa1'], 'feat', ['a--b', 'c--d'], ['turboSnap' => ['affectedImportPaths' => ['./src/c.stories.tsx']]]);
         $this->assertSame([['c--d']], CaptureJob::where('build_id', $b2->id)->pluck('story_ids')->all());
+    }
+
+    public function test_stories_without_reported_results_become_errors(): void
+    {
+        $this->makeProject();
+        $b = $this->startBuild('aaaaaaa1', [], 'main', ['a--one', 'a--two']);
+        $job = $this->postJson('/api/internal/v1/jobs/lease', ['workerId' => 'w'], $this->worker())->json('job');
+        $png = $this->png(4, 4, [1, 2, 3]);
+        $sha = hash('sha256', $png);
+        $this->call('PUT', "/api/internal/v1/images/{$sha}", [], [], [], $this->transformHeadersToServerVars($this->worker()), $png);
+        // Worker only reports one of the two stories.
+        $this->postJson("/api/internal/v1/jobs/{$job['id']}/results", ['workerId' => 'w', 'complete' => true, 'results' => [
+            ['storyId' => 'a--one', 'status' => 'captured', 'modeKey' => 'default', 'imageSha' => $sha],
+        ]], $this->worker())->assertOk();
+        $s = $this->buildStatus($b);
+        $this->assertSame('broken', $s['status']);
+        $this->assertSame(1, $s['counts']['errors']);
+        $this->assertStringContainsString('did not report', $this->snap($b, 'a--two')->error);
     }
 }
