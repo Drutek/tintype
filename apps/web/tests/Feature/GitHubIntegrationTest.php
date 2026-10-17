@@ -12,6 +12,7 @@ use App\Models\PullRequest;
 use App\Models\User;
 use App\Services\GitHub\CheckRunReporter;
 use App\Services\GitHub\GitHubApp;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -113,7 +114,7 @@ class GitHubIntegrationTest extends TestCase
     {
         // CSRF middleware is a no-op under unit tests, so assert the exclusion directly.
         $excluded = app('router')->getRoutes()->getByName('github.webhook')->excludedMiddleware();
-        $this->assertContains(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class, $excluded);
+        $this->assertContains(PreventRequestForgery::class, $excluded);
     }
 
     public function test_admin_callback_requires_state(): void
