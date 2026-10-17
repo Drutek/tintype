@@ -39,7 +39,7 @@ class UiReview
         foreach (array_unique(array_merge(array_keys($after), array_keys($before))) as $key) {
             $a = $after[$key] ?? null;
             $b = $before[$key] ?? null;
-            if ($a?->image_sha === $b?->image_sha) {
+            if ($a?->image_sha === $b?->image_sha || $this->matchedWithinThreshold($a, $b)) {
                 continue;
             }
             [$sid, $browser] = explode('|', $key);
@@ -56,6 +56,42 @@ class UiReview
         usort($changes, fn ($x, $y) => strcmp($x['story']->title.$x['story']->name, $y['story']->title.$y['story']->name));
 
         return ['head' => $head, 'base' => $base, 'changes' => $changes];
+    }
+
+    /**
+     * Hash of what a reviewer saw: each changed snapshot and the image it changed to.
+     *
+     * @param  list<array<string, mixed>>  $changes
+     */
+    public function fingerprint(array $changes): string
+    {
+        $parts = array_map(fn ($c) => $c['key'].'='.($c['after'] instanceof Snapshot ? $c['after']->image_sha : '-'), $changes);
+        sort($parts);
+
+        return hash('sha256', implode("\n", $parts));
+    }
+
+    /**
+     * Dismiss an approval (or change request) once the PR's UI changes differ from
+     * the ones it was made on, e.g. after a new push.
+     *
+     * @param  array{head: Build|null, base: Build|null, changes: list<array<string, mixed>>}  $comparison
+     */
+    public function dismissStaleReview(PullRequest $pr, array $comparison): void
+    {
+        if (! $pr->exists || ! in_array($pr->review_status, ['approved', 'changes_requested'], true)
+            || $pr->review_fingerprint === $this->fingerprint($comparison['changes'])) {
+            return;
+        }
+        $pr->update(['review_status' => 'open', 'review_fingerprint' => null]);
+        $pr->reviews()->create(['state' => 'dismissed', 'body' => 'UI changed since the last review'.($comparison['head'] ? " (build {$comparison['head']->number})" : '')]);
+    }
+
+    /** The head snapshot was judged unchanged against this same base image (a sub-threshold diff). */
+    private function matchedWithinThreshold(?Snapshot $after, ?Snapshot $before): bool
+    {
+        return $after && $before && $after->status === SnapshotStatus::Unchanged
+            && $after->baseline?->image_sha === $before->image_sha;
     }
 
     /** @param list<string> $complete */

@@ -66,6 +66,7 @@ class PullRequestController extends Controller
         $role = $this->role($request, $organization);
         $pr = PullRequest::firstOrNew(['project_id' => $project->id, 'number' => $number]);
         $comparison = $ui->compare($project, $pr, $number);
+        $ui->dismissStaleReview($pr, $comparison);
         $reviews = $pr->exists ? $pr->reviews()->with('user:id,name')->latest()->get() : collect();
 
         return Inertia::render('pulls/show', [
@@ -140,7 +141,7 @@ class PullRequestController extends Controller
         ]);
         $pr->reviews()->create(['user_id' => $request->user()->id, 'state' => $data['state'], 'body' => $data['body'] ?? null]);
         if ($data['state'] !== 'commented') {
-            $pr->update(['review_status' => $data['state']]);
+            $pr->update(['review_status' => $data['state'], 'review_fingerprint' => $ui->fingerprint($ui->compare($project, $pr, $number)['changes'])]);
         }
         // "Approve & accept all": also accept the head build's pending snapshots, so the
         // Visual Tests check clears along with UI Review.

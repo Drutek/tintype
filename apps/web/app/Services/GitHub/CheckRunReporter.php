@@ -86,6 +86,7 @@ class CheckRunReporter
             return;
         }
         $cmp = $this->uiReview->compare($project, $pr, $pr->number);
+        $this->uiReview->dismissStaleReview($pr, $cmp);
         $head = $cmp['head'];
         $installation = $project->github_installation_id ?? $this->app->installationForRepository($project->github_repository);
         if (! $head || ! $installation) {

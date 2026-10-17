@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $merge_commit_sha
  * @property string $review_status
  * @property int|null $ui_review_check_run_id
+ * @property string|null $review_fingerprint
  * @property list<int>|null $assignees
  */
 class PullRequest extends Model

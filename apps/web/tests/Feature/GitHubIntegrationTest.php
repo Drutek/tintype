@@ -13,6 +13,7 @@ use App\Models\PullRequest;
 use App\Models\User;
 use App\Services\GitHub\CheckRunReporter;
 use App\Services\GitHub\GitHubApp;
+use App\Services\UiReview;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -142,6 +143,47 @@ class GitHubIntegrationTest extends TestCase
         Http::assertSent(fn (Request $r) => ($r['name'] ?? null) === 'Visual Tests' && $r['conclusion'] === 'action_required');
         Http::assertSent(fn (Request $r) => ($r['name'] ?? null) === 'UI Review' && $r['conclusion'] === 'action_required' && $r['head_sha'] === 'f1');
         $this->assertDatabaseHas('pull_requests', ['project_id' => $project->id, 'number' => 4, 'base_branch' => 'main']);
+    }
+
+    public function test_new_push_with_different_ui_dismisses_approval(): void
+    {
+        $this->configureApp();
+        $project = $this->makeProject(['github_repository' => 'acme/web']);
+        $this->commits($project, ['m1' => [], 'f1' => ['m1'], 'f2' => ['f1'], 'f3' => ['f2']]);
+        $this->completedBuild($project, 'm1', 'main', ['a--b' => ['sha' => str_repeat('1', 64)], 'c--d' => ['sha' => str_repeat('5', 64)]]);
+        $changed = ['status' => SnapshotStatus::Changed, 'review' => ReviewState::Accepted];
+        $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('2', 64)] + $changed, 'c--d' => ['sha' => str_repeat('5', 64)]])->update(['pr_number' => 5]);
+        $pr = PullRequest::create(['project_id' => $project->id, 'number' => 5, 'head_branch' => 'feature', 'base_branch' => 'main']);
+        Http::fake([
+            'api.github.com/repos/acme/web/installation' => Http::response(['id' => 9]),
+            'api.github.com/app/installations/9/access_tokens' => Http::response(['token' => 't']),
+            'api.github.com/repos/acme/web/check-runs' => Http::response(['id' => 79], 201),
+        ]);
+        $user = $this->member($project);
+        $this->actingAs($user)->post(route('pulls.review', [$project->organization, $project, 5]), ['state' => 'approved'])->assertRedirect();
+        $this->assertSame('approved', $pr->fresh()->review_status);
+
+        // A push that leaves the UI as approved keeps the approval.
+        $this->completedBuild($project, 'f2', 'feature', ['a--b' => ['sha' => str_repeat('2', 64)], 'c--d' => ['sha' => str_repeat('5', 64)]])->update(['pr_number' => 5]);
+        app(CheckRunReporter::class)->reportPullRequest($pr->fresh()->load('project.organization'));
+        $this->assertSame('approved', $pr->fresh()->review_status);
+
+        // A push that changes another story dismisses it, and UI Review needs action again.
+        $this->completedBuild($project, 'f3', 'feature', ['a--b' => ['sha' => str_repeat('2', 64)], 'c--d' => ['sha' => str_repeat('6', 64), 'status' => SnapshotStatus::Changed, 'review' => ReviewState::Pending]], BuildStatus::Pending)->update(['pr_number' => 5]);
+        app(CheckRunReporter::class)->reportPullRequest($pr->fresh()->load('project.organization'));
+        $this->assertSame('open', $pr->fresh()->review_status);
+        $this->assertDatabaseHas('pull_request_reviews', ['pull_request_id' => $pr->id, 'state' => 'dismissed']);
+        Http::assertSent(fn (Request $r) => ($r['name'] ?? null) === 'UI Review' && $r['head_sha'] === 'f3' && $r['conclusion'] === 'action_required' && $r['output']['title'] === '2 UI changes to review');
+    }
+
+    public function test_sub_threshold_match_is_not_a_ui_change(): void
+    {
+        $project = $this->makeProject();
+        $this->commits($project, ['m1' => [], 'f1' => ['m1']]);
+        $base = $this->completedBuild($project, 'm1', 'main', ['a--b' => ['sha' => str_repeat('1', 64)]]);
+        $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('2', 64), 'baseline' => $this->snap($base, 'a--b')->id]])->update(['pr_number' => 6]);
+        $pr = PullRequest::create(['project_id' => $project->id, 'number' => 6, 'head_branch' => 'feature', 'base_branch' => 'main']);
+        $this->assertSame([], app(UiReview::class)->compare($project, $pr, 6)['changes']);
     }
 
     public function test_ui_review_check(): void

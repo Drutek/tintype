@@ -45,7 +45,7 @@ interface Props {
     reviews: { id: number; state: string; body: string | null; user: string | null; createdAt: string }[];
 }
 
-const STATE_LABEL: Record<string, string> = { approved: 'approved', changes_requested: 'requested changes', commented: 'commented', assigned: 'assigned' };
+const STATE_LABEL: Record<string, string> = { approved: 'approved', changes_requested: 'requested changes', commented: 'commented', assigned: 'assigned', dismissed: 'Review dismissed' };
 
 export default function PullShow({ organization, project, role, pull, members, head, pendingInHead, base, changes, reviews }: Props) {
     const [view, setView] = useState<'side' | 'after'>('side');
