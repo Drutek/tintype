@@ -32,7 +32,7 @@ x-app: &app
     TINTYPE_INTERNAL_URL: http://web:8080
     TINTYPE_OPEN_REGISTRATION: ${TINTYPE_OPEN_REGISTRATION:-false}
   volumes:
-    - tintype-data:/data/tintype
+    - tintype-data:/data
   depends_on:
     postgres: { condition: service_healthy }
     redis: { condition: service_started }
