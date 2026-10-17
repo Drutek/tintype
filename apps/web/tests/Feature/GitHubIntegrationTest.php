@@ -105,6 +105,15 @@ class GitHubIntegrationTest extends TestCase
         $this->assertStringEndsWith('/apps/tintype-x/installations/new', app(GitHubApp::class)->installUrl());
         $manifest = app(GitHubApp::class)->manifest();
         $this->assertSame('write', $manifest['default_permissions']['checks']);
+        // GitHub rejects a JSON array body ("[]") on this endpoint; it must be an object.
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/conversions') && $r->body() === '{}');
+    }
+
+    public function test_webhook_route_skips_request_forgery_protection(): void
+    {
+        // CSRF middleware is a no-op under unit tests, so assert the exclusion directly.
+        $excluded = app('router')->getRoutes()->getByName('github.webhook')->excludedMiddleware();
+        $this->assertContains(\Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class, $excluded);
     }
 
     public function test_admin_callback_requires_state(): void

@@ -291,7 +291,7 @@ Status as of 2026-10-16. `docs/progress.md` records how each item was verified.
 - [x] GitHub App via the manifest flow, check runs on build and on review (tested with faked HTTP)
 - [x] docker compose deployment; web image built and smoke-tested (amd64)
 - [x] E2E (`scripts/e2e.sh`): real server, capture worker, CLI, Playwright review UI and Storybook addon; also run in CI (`.github/workflows/ci.yml`)
-- **Accept:** verified locally end to end: first build auto-accepted, no-change build passes, a Button colour change flags exactly the 3 affected stories, accepting in the UI makes the next build pass. A live GitHub check run on a real repo needs a publicly reachable install. That step is manual (see `docs/progress.md`).
+- **Accept:** verified locally end to end: first build auto-accepted, no-change build passes, a Button colour change flags exactly the 3 affected stories, accepting in the UI makes the next build pass. Live GitHub check runs (Visual Tests and UI Review) were verified on Drutek/tintype on 2026-10-17 (see `docs/progress.md`).
 
 ### Phase 2: Full feature set ✅
 - [x] Story params under `parameters.tintype`: `disableSnapshot`, `delay`, `diffThreshold`, `diffIncludeAntiAliasing`, `pauseAnimationAtEnd`, `viewports`, **modes** (viewport + globals), `ignoreSelectors`, `cropToViewport`, `fixedTime`, `a11y`

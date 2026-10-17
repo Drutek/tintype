@@ -85,7 +85,9 @@ class GitHubApp
      */
     public function completeManifest(string $code): array
     {
+        // GitHub validates the body against its schema: an empty JSON array is rejected, an object is not.
         $res = Http::withHeaders(['Accept' => 'application/vnd.github+json', 'User-Agent' => 'tintype'])
+            ->withBody('{}', 'application/json')
             ->post($this->apiUrl("app-manifests/{$code}/conversions"));
         $res->throw();
         $data = $res->json();
