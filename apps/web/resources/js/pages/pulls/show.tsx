@@ -39,6 +39,7 @@ interface Props {
     };
     members: { id: number; name: string }[];
     head: BuildRow | null;
+    pendingInHead: number;
     base: BuildRow | null;
     changes: Change[];
     reviews: { id: number; state: string; body: string | null; user: string | null; createdAt: string }[];
@@ -46,7 +47,7 @@ interface Props {
 
 const STATE_LABEL: Record<string, string> = { approved: 'approved', changes_requested: 'requested changes', commented: 'commented', assigned: 'assigned' };
 
-export default function PullShow({ organization, project, role, pull, members, head, base, changes, reviews }: Props) {
+export default function PullShow({ organization, project, role, pull, members, head, pendingInHead, base, changes, reviews }: Props) {
     const [view, setView] = useState<'side' | 'after'>('side');
     const p = { organization: organization.slug, project: project.slug };
     const byComponent = changes.reduce<Record<string, Change[]>>((acc, c) => ((acc[c.title] ??= []).push(c), acc), {});
@@ -92,6 +93,16 @@ export default function PullShow({ organization, project, role, pull, members, h
                             )}
                         </p>
                     </div>
+                    {head && pendingInHead > 0 && (
+                        <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+                            {pendingInHead} {pendingInHead === 1 ? 'change' : 'changes'} in{' '}
+                            <Link className="underline" href={showBuild({ ...p, build: head.number })}>
+                                build {head.number}
+                            </Link>{' '}
+                            still {pendingInHead === 1 ? 'needs' : 'need'} accepting before the Visual Tests check passes.
+                            {role !== 'viewer' && ' Approve & accept all does both at once.'}
+                        </div>
+                    )}
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium">{changes.length} UI changes</span>
                         <div className="ml-auto flex rounded-md border p-0.5 text-xs">
@@ -141,9 +152,10 @@ export default function PullShow({ organization, project, role, pull, members, h
                                 {({ processing }) => (
                                     <>
                                         <textarea name="body" rows={3} placeholder="Leave a comment…" className="w-full rounded-md border bg-background px-2 py-1.5 text-sm" />
+                                        {pendingInHead > 0 && <input type="hidden" name="accept_pending" value="1" />}
                                         <div className="flex flex-wrap gap-2">
                                             <Button size="sm" name="state" value="approved" type="submit" disabled={processing}>
-                                                Approve
+                                                {pendingInHead > 0 ? `Approve & accept all (${pendingInHead})` : 'Approve'}
                                             </Button>
                                             <Button size="sm" variant="outline" name="state" value="changes_requested" type="submit" disabled={processing}>
                                                 Request changes

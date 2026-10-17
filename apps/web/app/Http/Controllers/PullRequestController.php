@@ -2,20 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\ReviewState;
 use App\Jobs\ReportPullRequestToGitHub;
+use App\Models\AuditLog;
 use App\Models\Build;
 use App\Models\Image;
 use App\Models\Organization;
 use App\Models\Project;
 use App\Models\PullRequest;
 use App\Models\PullRequestReview;
+use App\Models\Snapshot;
 use App\Models\User;
+use App\Services\ReviewService;
 use App\Services\UiReview;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use InvalidArgumentException;
 
 /**
  * UI Review: everything a PR changes visually, compared with its base branch,
@@ -79,6 +85,8 @@ class PullRequestController extends Controller
             ],
             'members' => $organization->users()->orderBy('name')->get(['users.id', 'users.name'])->map(fn (User $u) => ['id' => $u->id, 'name' => $u->name])->values(),
             'head' => $comparison['head'] ? BuildController::row($comparison['head']) : null,
+            // Snapshots in the head build still awaiting a decision: these keep the Visual Tests check open.
+            'pendingInHead' => $comparison['head'] ? $this->pendingIn($comparison['head'])->count() : 0,
             'base' => $comparison['base'] ? BuildController::row($comparison['base']) : null,
             'changes' => collect($comparison['changes'])->map(fn ($c) => [
                 'key' => $c['key'],
@@ -117,13 +125,14 @@ class PullRequestController extends Controller
         return back();
     }
 
-    public function review(Request $request, Organization $organization, Project $project, int $number): RedirectResponse
+    public function review(Request $request, Organization $organization, Project $project, int $number, UiReview $ui, ReviewService $decisions): RedirectResponse
     {
         $this->scoped($organization, $project);
         $this->requireReviewer($request, $organization);
         $data = $request->validate([
             'state' => ['required', Rule::in(['approved', 'changes_requested', 'commented'])],
             'body' => ['nullable', 'string', 'max:5000'],
+            'accept_pending' => ['boolean'],
         ]);
         $pr = PullRequest::firstOrCreate(['project_id' => $project->id, 'number' => $number], [
             'head_branch' => Build::where('project_id', $project->id)->where('pr_number', $number)->latest('id')->value('branch'),
@@ -133,8 +142,26 @@ class PullRequestController extends Controller
         if ($data['state'] !== 'commented') {
             $pr->update(['review_status' => $data['state']]);
         }
+        // "Approve & accept all": also accept the head build's pending snapshots, so the
+        // Visual Tests check clears along with UI Review.
+        if ($data['state'] === 'approved' && ($data['accept_pending'] ?? false) && $head = $ui->compare($project, $pr, $number)['head']) {
+            try {
+                $count = $decisions->decide($head, $this->pendingIn($head)->get(), 'accepted', $request->user(), 'ui_review');
+                if ($count) {
+                    AuditLog::record('build.bulk_accepted', $organization, $head, ['count' => $count, 'scope' => 'pull_request']);
+                }
+            } catch (InvalidArgumentException $e) {
+                return back()->withErrors(['review' => $e->getMessage()]);
+            }
+        }
         ReportPullRequestToGitHub::dispatch($pr->id);
 
         return back();
+    }
+
+    /** @return HasMany<Snapshot, Build> */
+    private function pendingIn(Build $build): HasMany
+    {
+        return $build->snapshots()->where('review_state', ReviewState::Pending->value);
     }
 }

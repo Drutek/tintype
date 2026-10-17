@@ -157,4 +157,32 @@ class GitHubIntegrationTest extends TestCase
         $stranger = User::factory()->create();
         $this->post(route('pulls.assign', [$project->organization, $project, 3]), ['user_id' => $stranger->id])->assertStatus(422);
     }
+
+    public function test_approve_and_accept_all_clears_pending_snapshots(): void
+    {
+        $project = $this->makeProject();
+        $this->commits($project, ['m1' => [], 'f1' => ['m1']]);
+        $this->completedBuild($project, 'm1', 'main', ['a--b' => ['sha' => str_repeat('1', 64)]]);
+        $head = $this->completedBuild($project, 'f1', 'feature', [
+            'a--b' => ['sha' => str_repeat('2', 64), 'status' => SnapshotStatus::Changed, 'review' => ReviewState::Pending],
+            'a--c' => ['sha' => str_repeat('3', 64), 'status' => SnapshotStatus::New, 'review' => ReviewState::Pending],
+        ], BuildStatus::Pending);
+        $head->update(['pr_number' => 4]);
+        PullRequest::create(['project_id' => $project->id, 'number' => 4, 'head_branch' => 'feature', 'base_branch' => 'main']);
+        $user = $this->member($project);
+        $show = route('pulls.show', [$project->organization, $project, 4]);
+        $review = route('pulls.review', [$project->organization, $project, 4]);
+
+        $this->actingAs($user)->get($show)->assertInertia(fn ($page) => $page->where('pendingInHead', 2));
+
+        // Requesting changes never accepts anything, even if the flag is sent.
+        $this->post($review, ['state' => 'changes_requested', 'accept_pending' => true])->assertRedirect();
+        $this->assertSame(BuildStatus::Pending, $head->fresh()->status);
+
+        $this->post($review, ['state' => 'approved', 'accept_pending' => true])->assertRedirect();
+        $this->assertSame(0, $head->snapshots()->where('review_state', ReviewState::Pending->value)->count());
+        $this->assertSame(BuildStatus::Accepted, $head->fresh()->status);
+        $this->assertSame('approved', PullRequest::where('number', 4)->value('review_status'));
+        $this->get($show)->assertInertia(fn ($page) => $page->where('pendingInHead', 0));
+    }
 }

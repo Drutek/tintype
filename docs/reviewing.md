@@ -55,6 +55,12 @@ Each snapshot keeps a review history and a comment thread.
 build and the base-branch build it forked from. Reviewers can approve, request
 changes or comment, which drives a separate **UI Review** GitHub check.
 
+Approving a PR does not by itself accept the snapshots in its build, so the
+**Visual Tests** check can stay open. When the head build has snapshots waiting
+for a decision, the PR page says so, and the button becomes **Approve & accept
+all**. That approves the PR and accepts those snapshots in one step, which
+clears both checks.
+
 ## Accessibility
 
 Every story is checked with axe-core after capture. Violations appear on the
