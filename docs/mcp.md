@@ -6,35 +6,53 @@ new image, baseline and diff for a snapshot, and accept, deny or approve changes
 
 ## Connect
 
-1. In Tintype, open **Settings → API tokens** and create a token. It is shown once.
-2. Add the server to your client. The endpoint is `https://<your-tintype>/mcp`, with the
-   token sent as a bearer header.
+Add the server URL, `https://<your-tintype>/mcp`, to your client. The first time it
+connects, the client opens your browser; sign in to Tintype if needed and click
+**Authorize**. The client then holds an OAuth token and refreshes it by itself.
 
 Claude Code:
 
 ```sh
-claude mcp add --transport http tintype https://tintype.example.com/mcp \
-  --header "Authorization: Bearer tu_xxxxxxxx_…"
+claude mcp add --transport http tintype https://tintype.example.com/mcp
 ```
 
-Clients with a JSON config:
+then run `/mcp`, pick `tintype` and choose **Authenticate**.
+
+Cursor, VS Code and other clients with a JSON config:
 
 ```json
 {
   "mcpServers": {
-    "tintype": {
-      "type": "http",
-      "url": "https://tintype.example.com/mcp",
-      "headers": { "Authorization": "Bearer tu_xxxxxxxx_…" }
-    }
+    "tintype": { "type": "http", "url": "https://tintype.example.com/mcp" }
   }
 }
 ```
 
-The client acts as you, with your role in each organization: viewers can read, and
-reviewers and above can also decide. Decisions show in each snapshot's history with the
-source `mcp`. Revoke a token on the same settings page. Project tokens (`tt_…`, used by
-the CLI in CI) are not accepted here.
+The approval page names the client and where the access is sent; only approve a
+request you started yourself. Access tokens last a day and refresh for 90 days of use;
+after that the client asks you to approve again.
+
+### Headless clients
+
+Scripts and agents that can't open a browser can use a personal access token instead:
+**Settings → API tokens** creates one (shown once), sent as
+`Authorization: Bearer tu_…`. Revoke it on the same page. Project tokens (`tt_…`, used
+by the CLI in CI) are not accepted, so a CI job can't approve its own changes.
+
+### Access
+
+Either way, the client acts as you, with your role in each organization: viewers can
+read, and reviewers and above can also decide. Decisions show in each snapshot's
+history with the source `mcp`.
+
+### Self-hosting notes
+
+OAuth works with no extra configuration. Tintype generates the token-signing keys on
+first use and stores them encrypted (with `APP_KEY`) in the database, so every web
+replica shares them. To manage the keys yourself, set `PASSPORT_PRIVATE_KEY` and
+`PASSPORT_PUBLIC_KEY`. `APP_URL` must be the public HTTPS URL, since it is the OAuth
+issuer. Allowed redirect URIs are set in `config/mcp.php`: any `http(s)` URL, plus the
+`cursor://` and `vscode://` schemes.
 
 ## Tools
 

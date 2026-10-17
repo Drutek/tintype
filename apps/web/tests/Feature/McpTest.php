@@ -88,6 +88,46 @@ class McpTest extends TestCase
         $this->assertNotNull(ApiToken::first()->last_used_at);
     }
 
+    public function test_oauth_flow_from_discovery_to_tool_call(): void
+    {
+        $body = ['jsonrpc' => '2.0', 'id' => 1, 'method' => 'tools/list', 'params' => (object) []];
+        // 1. Unauthenticated request points the client at the resource metadata.
+        $challenge = $this->postJson('/mcp', $body)->assertUnauthorized()->headers->get('WWW-Authenticate');
+        $this->assertStringContainsString('resource_metadata="'.url('/.well-known/oauth-protected-resource/mcp').'"', $challenge);
+        $this->getJson('/.well-known/oauth-protected-resource/mcp')->assertOk()->assertJsonPath('authorization_servers.0', url('/'));
+        $meta = $this->getJson('/.well-known/oauth-authorization-server')->assertOk()->json();
+        $this->assertSame(url('/oauth/register'), $meta['registration_endpoint']);
+
+        // 2. Dynamic client registration (as Claude Code does, with a localhost callback).
+        $redirect = 'http://localhost:33418/callback';
+        $clientId = $this->postJson('/oauth/register', ['client_name' => 'Claude Code', 'redirect_uris' => [$redirect]])->assertCreated()->json('client_id');
+
+        // 3. The user signs in and approves in the browser (PKCE, public client).
+        $verifier = str_repeat('v', 64);
+        $query = http_build_query([
+            'client_id' => $clientId, 'redirect_uri' => $redirect, 'response_type' => 'code', 'scope' => 'mcp:use', 'state' => 'xyz',
+            'code_challenge' => rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '='), 'code_challenge_method' => 'S256',
+        ]);
+        $this->get('/oauth/authorize?'.$query)->assertRedirect(route('login'));
+        $user = $this->member($this->project, Role::Reviewer);
+        $page = $this->actingAs($user)->get('/oauth/authorize?'.$query)->assertOk()->assertSee('Authorize Claude Code')->assertSee('localhost');
+        preg_match('/name="auth_token" value="([^"]+)"/', $page->getContent(), $m);
+        $location = $this->post('/oauth/authorize', ['state' => 'xyz', 'client_id' => $clientId, 'auth_token' => $m[1]])->assertRedirect()->headers->get('Location');
+        $this->assertStringStartsWith($redirect, $location);
+        parse_str((string) parse_url($location, PHP_URL_QUERY), $params);
+        $this->assertSame('xyz', $params['state']);
+
+        // 4. Code for token, then a tool call as that user.
+        $token = $this->postJson('/oauth/token', [
+            'grant_type' => 'authorization_code', 'client_id' => $clientId, 'redirect_uri' => $redirect, 'code' => $params['code'], 'code_verifier' => $verifier,
+        ])->assertOk()->json();
+        $this->assertNotEmpty($token['refresh_token']);
+        app('auth')->forgetGuards();
+        $this->postJson('/mcp', ['jsonrpc' => '2.0', 'id' => 2, 'method' => 'tools/call', 'params' => ['name' => 'list-projects', 'arguments' => (object) []]], ['Authorization' => 'Bearer '.$token['access_token']])
+            ->assertOk()->assertJsonPath('result.structuredContent.organizations.0.projects.0.project', $this->ref())
+            ->assertJsonPath('result.structuredContent.organizations.0.role', 'reviewer');
+    }
+
     public function test_read_tools_only_show_projects_you_belong_to(): void
     {
         $viewer = $this->member($this->project, Role::Viewer);

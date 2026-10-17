@@ -8,20 +8,27 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
-/** `Authorization: Bearer <personal access token>`: the request acts as the token's user. */
+/**
+ * Personal access tokens (`Bearer tu_…`) for clients that can't do the OAuth flow.
+ * Any other bearer token is left to the `auth:api` (OAuth) middleware that follows.
+ */
 class AuthenticateApiToken
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $token = ApiToken::findByToken($request->bearerToken());
+        $bearer = $request->bearerToken();
+        if (! $bearer || ! str_starts_with($bearer, 'tu_')) {
+            return $next($request);
+        }
+        $token = ApiToken::findByToken($bearer);
         if (! $token) {
-            return response()->json(['message' => 'Invalid or missing personal access token'], 401);
+            return response()->json(['message' => 'Invalid personal access token'], 401);
         }
         if (! $token->last_used_at || $token->last_used_at->lt(now()->subMinute())) {
             $token->forceFill(['last_used_at' => now()])->saveQuietly();
         }
-        Auth::setUser($token->user);
-        $request->setUserResolver(fn () => $token->user);
+        Auth::guard('api')->setUser($token->user);
+        Auth::shouldUse('api');
 
         return $next($request);
     }

@@ -25,8 +25,14 @@ export default function Tokens({ tokens, newToken, mcpUrl }: { tokens: Token[]; 
                 <Heading
                     variant="small"
                     title="API tokens"
-                    description="Personal access tokens let MCP clients (Claude Code, Cursor and others) review builds as you, with your role in each organization"
+                    description="Personal access tokens for MCP clients that can't sign in through the browser, e.g. scripts and CI agents. They act as you, with your role in each organization"
                 />
+
+                <p className="text-sm text-muted-foreground">
+                    Most clients don't need one: add <code className="font-mono text-xs">{mcpUrl}</code> to Claude Code, Cursor or VS Code and approve
+                    the sign-in in your browser. For Claude Code: <code className="font-mono text-xs">claude mcp add --transport http tintype {mcpUrl}</code>,
+                    then run <code className="font-mono text-xs">/mcp</code> and choose Authenticate.
+                </p>
 
                 <Form {...store.form()} options={{ preserveScroll: true }} resetOnSuccess className="flex items-end gap-2">
                     {({ errors, processing }) => (
@@ -53,7 +59,7 @@ export default function Tokens({ tokens, newToken, mcpUrl }: { tokens: Token[]; 
                 )}
 
                 <div className="space-y-2 text-sm">
-                    <p className="font-medium">Connect an MCP client</p>
+                    <p className="font-medium">Connect with a token</p>
                     <p className="text-muted-foreground">
                         Claude Code: <code className="font-mono text-xs">claude mcp add --transport http tintype {mcpUrl} --header "Authorization: Bearer {newToken ?? '<your token>'}"</code>
                     </p>

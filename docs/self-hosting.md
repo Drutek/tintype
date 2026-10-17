@@ -75,7 +75,7 @@ See [`deploy/terraform/aws`](../deploy/terraform/aws/README.md):
   so rotate it by redeploying.
 - Hosted Storybooks are served under unguessable per-build paths. Unless a
   project is marked public, the entry link requires login.
-- GitHub App credentials and SCM tokens are encrypted with `APP_KEY`.
+- GitHub App credentials, SCM tokens and the OAuth signing keys (for MCP clients) are encrypted with `APP_KEY`; rotating `APP_KEY` makes MCP clients approve again.
 - The GitHub webhook verifies `X-Hub-Signature-256`. Outgoing webhooks are
   signed (`X-Tintype-Signature`).
 - An audit log records token rotations, membership, settings, GitHub and
