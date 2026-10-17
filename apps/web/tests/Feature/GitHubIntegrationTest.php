@@ -181,7 +181,9 @@ class GitHubIntegrationTest extends TestCase
         $project = $this->makeProject();
         $this->commits($project, ['m1' => [], 'f1' => ['m1']]);
         $base = $this->completedBuild($project, 'm1', 'main', ['a--b' => ['sha' => str_repeat('1', 64)]]);
-        $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('2', 64), 'baseline' => $this->snap($base, 'a--b')->id]])->update(['pr_number' => 6]);
+        $first = $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('2', 64), 'baseline' => $this->snap($base, 'a--b')->id]]);
+        // A rebuild whose baseline is the first branch build, not main.
+        $this->completedBuild($project, 'f1', 'feature', ['a--b' => ['sha' => str_repeat('3', 64), 'baseline' => $this->snap($first, 'a--b')->id]])->update(['pr_number' => 6]);
         $pr = PullRequest::create(['project_id' => $project->id, 'number' => 6, 'head_branch' => 'feature', 'base_branch' => 'main']);
         $this->assertSame([], app(UiReview::class)->compare($project, $pr, 6)['changes']);
     }

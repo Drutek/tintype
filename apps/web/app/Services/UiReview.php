@@ -87,11 +87,20 @@ class UiReview
         $pr->reviews()->create(['state' => 'dismissed', 'body' => 'UI changed since the last review'.($comparison['head'] ? " (build {$comparison['head']->number})" : '')]);
     }
 
-    /** The head snapshot was judged unchanged against this same base image (a sub-threshold diff). */
+    /**
+     * The head snapshot was judged unchanged, directly or through a chain of unchanged
+     * rebuilds, against this same base image (sub-threshold diffs).
+     */
     private function matchedWithinThreshold(?Snapshot $after, ?Snapshot $before): bool
     {
-        return $after && $before && $after->status === SnapshotStatus::Unchanged
-            && $after->baseline?->image_sha === $before->image_sha;
+        for ($s = $after, $hops = 0; $before && $s?->status === SnapshotStatus::Unchanged && $hops < 20; $hops++) {
+            $s = $s->baseline;
+            if ($s?->image_sha === $before->image_sha) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** @param list<string> $complete */
