@@ -6,8 +6,10 @@ Every screenshot is taken server-side, in a pinned Linux x86_64 container, so
 the pixels are reproducible. Changes are diffed against git-aware baselines
 and reviewed in a web UI, and the result is reported to GitHub as a check run.
 
-> Status: under active development. See [PLAN.md](PLAN.md) for the roadmap and
-> [docs/determinism.md](docs/determinism.md) for the capture-consistency results.
+> Status: all planned phases are complete. Supports Storybook 9 and 10. See
+> [docs/progress.md](docs/progress.md) for what has been verified,
+> [docs/determinism.md](docs/determinism.md) for capture-consistency results and
+> [docs/benchmark.md](docs/benchmark.md) for throughput.
 
 ## Pieces
 
