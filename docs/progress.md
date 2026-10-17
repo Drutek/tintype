@@ -34,9 +34,15 @@ How each milestone was verified, and what is still open.
 1. *(Done.)* The repo now lives at github.com/Drutek/tintype. Native x86_64
    determinism passed in CI: 31/31 identical over 20 runs, byte-identical to
    the Rosetta captures.
-2. **Live GitHub App.** Create the app from Admin → GitHub App on an install
-   reachable from GitHub. Then confirm check runs and UI Review checks on a real
-   PR. The API calls are covered by tests with faked HTTP.
+2. **Live GitHub App.** In progress (2026-10-17):
+   - A local install is exposed through a cloudflared quick tunnel, behind
+     `TRUSTED_PROXIES=*`.
+   - The manifest flow for **Drutek** was submitted, and GitHub stopped at its
+     sudo-mode "Confirm access" passkey prompt, which only the account owner
+     can complete.
+   - After that: install the app on `Drutek/tintype`, then run
+     `scripts/live-github-check.sh`. It opens a draft PR, runs a baseline build
+     and a changed build, and prints the Visual Tests and UI Review check runs.
 3. **AWS performance acceptance (Phase 2).** Met locally: 1,280 snapshots in
    about 80s per build, 0 inconsistent over 10 builds (see
    [benchmark.md](benchmark.md)). The AWS run is deferred until credentials are
