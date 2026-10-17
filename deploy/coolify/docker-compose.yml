@@ -51,12 +51,18 @@ services:
   horizon:
     <<: *app
     command: horizon
+    healthcheck:
+      test: ["CMD", "php", "artisan", "horizon:status"]
+      interval: 30s
+      retries: 3
+      start_period: 30s
     depends_on:
       web: { condition: service_healthy }
 
   scheduler:
     <<: *app
     command: scheduler
+    exclude_from_hc: true # Coolify: no endpoint to probe
     depends_on:
       web: { condition: service_healthy }
 
@@ -70,6 +76,7 @@ services:
       TINTYPE_CONCURRENCY: ${TINTYPE_CAPTURE_CONCURRENCY:-4}
       TINTYPE_CAPTURE_IMAGE_TAG: ${TINTYPE_CAPTURE_IMAGE:-ghcr.io/drutek/tintype-capture-chromium:latest}
     shm_size: 1gb
+    exclude_from_hc: true # Coolify: workers have no endpoint; see Admin → Capture fleet
     depends_on:
       web: { condition: service_healthy }
     restart: unless-stopped
@@ -92,6 +99,10 @@ services:
     image: redis:7-alpine
     volumes:
       - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
     restart: unless-stopped
 
 volumes:
