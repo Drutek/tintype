@@ -15,7 +15,7 @@ and reviewed in a web UI, and the result is reported to GitHub as a check run.
 
 | Path | What |
 |---|---|
-| `apps/web` | Laravel 13 + Inertia/React control plane: API, review UI, baselines, GitHub App |
+| `apps/web` | Laravel 13 + Inertia/React control plane: API, review UI, baselines, GitHub App, [MCP server](docs/mcp.md) |
 | `packages/capture` | Playwright capture engine and worker (`tintype-capture`) with its Docker images |
 | `packages/diff` | Pixel diffing (pixelmatch), hash short-circuit, ignore regions, change clustering |
 | `packages/cli` | `tintype` CLI for CI: builds and uploads Storybook, then waits for the result |

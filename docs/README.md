@@ -7,6 +7,7 @@
 - [Reviewing changes](reviewing.md): builds, baselines, the review UI, UI Review
   for pull requests.
 - [Storybook addon](storybook-addon.md): the Visual tests panel inside Storybook.
+- [MCP server](mcp.md): let AI assistants inspect diffs and review builds.
 - [Self-hosting](self-hosting.md): docker compose, AWS, scaling, upgrades,
   security.
 - [How it works](architecture.md): build lifecycle, git-aware baselines,
