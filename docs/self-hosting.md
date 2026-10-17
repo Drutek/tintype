@@ -20,6 +20,26 @@ Capture workers sit on their own network, together with `web` only. The
 browser runs untrusted Storybook code, so workers can't reach Postgres, Redis
 or MinIO.
 
+## Coolify
+
+`deploy/coolify/docker-compose.yml` is a single-domain variant for Coolify's
+docker compose build pack.
+- It stores images on a volume instead of MinIO, and pages poll for updates
+  instead of using Reverb.
+- **Set up:**
+  1. Create a resource from this repo with that compose path.
+  2. Give the `web` service a domain on port 8080, for example
+     `https://tintype.example.com:8080`.
+  3. Set `APP_URL`, `APP_KEY` (`base64:` followed by 32 random bytes),
+     `TINTYPE_WORKER_TOKEN` and `POSTGRES_PASSWORD`.
+  4. Deploy.
+- The first account registered becomes the admin, so register before you share
+  the URL.
+- **Behind Cloudflare's proxy:** Cloudflare's free plan limits uploads to 100MB,
+  which caps the size of an uploaded Storybook. In Full (strict) SSL mode,
+  Cloudflare returns 526 until Coolify's proxy has a Let's Encrypt
+  certificate. If DNS was added after the first deploy, restart the resource.
+
 ## AWS
 
 See [`deploy/terraform/aws`](../deploy/terraform/aws/README.md):
