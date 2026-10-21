@@ -1,0 +1,7 @@
+version: 2
+updates:
+  # The web image pins its PHP base by digest; this proposes patch releases (security fixes) as PRs.
+  - package-ecosystem: docker
+    directory: /apps/web/docker
+    schedule:
+      interval: daily

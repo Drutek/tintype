@@ -1,7 +1,9 @@
 # Tintype web image: one image, several roles (web | horizon | reverb | scheduler | migrate).
 # Build from the repo root:  docker build -f apps/web/docker/Dockerfile -t tintype/web .
-FROM dunglas/frankenphp:1-php8.4-bookworm AS base
-RUN install-php-extensions pdo_pgsql pdo_sqlite zip pcntl gd intl opcache bcmath
+# Pinned: PHP 8.4.27 fixes CVE-2026-109618 / CVE-2026-109619. Bump the tag and digest together.
+FROM dunglas/frankenphp:1.13.2-php8.4.27-bookworm@sha256:49369ff211d81dc30a15890d58c0651d639aef0d9c0a9b91bcc6f387a77bd7a2 AS base
+RUN php -r 'exit(version_compare(PHP_VERSION, "8.4.27", ">=") ? 0 : 1);' \
+ && install-php-extensions pdo_pgsql pdo_sqlite zip pcntl gd intl opcache bcmath
 ENV SERVER_NAME=":8080" \
     APP_NAME=Tintype \
     APP_ENV=production \
